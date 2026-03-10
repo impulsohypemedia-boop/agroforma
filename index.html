@@ -1,0 +1,1703 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgroForma — Dale forma a tu información agropecuaria</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --verde: #1A3311;
+  --verde-mid: #2B5118;
+  --verde-accent: #3D7A1C;
+  --tierra: #B8922A;
+  --tierra-light: #D4AD3C;
+  --tierra-soft: rgba(184, 146, 42, 0.1);
+  --crema: #F9F8F4;
+  --crema-warm: #F2EEE2;
+  --crema-dark: #E4DDD0;
+  --carbon: #141412;
+  --carbon-mid: #2C2C28;
+  --gris: #6E6E64;
+  --gris-light: #9E9E92;
+  --blanco: #FFFFFF;
+  --rojo-soft: #D94F4F;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background: var(--crema);
+  color: var(--carbon);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.serif { font-family: 'Fraunces', serif; }
+
+/* ===== NAV ===== */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  padding: 0.9rem 3rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 100;
+  background: rgba(249, 248, 244, 0.82);
+  backdrop-filter: blur(24px) saturate(1.4);
+  border-bottom: 1px solid rgba(26, 51, 17, 0.05);
+  transition: padding 0.3s;
+}
+
+.logo {
+  font-family: 'Fraunces', serif;
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--verde);
+  text-decoration: none;
+  letter-spacing: -0.03em;
+}
+.logo-dot { color: var(--tierra); }
+
+.nav-links { display: flex; gap: 2.2rem; align-items: center; }
+.nav-links a {
+  text-decoration: none;
+  color: var(--gris);
+  font-size: 0.84rem;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+.nav-links a:hover { color: var(--verde); }
+
+.btn-nav {
+  background: var(--verde) !important;
+  color: var(--crema) !important;
+  padding: 0.55rem 1.3rem !important;
+  border-radius: 8px;
+  transition: all 0.25s !important;
+}
+.btn-nav:hover { background: var(--verde-mid) !important; transform: translateY(-1px); }
+
+/* ===== HERO ===== */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 7rem 2rem 3rem;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Background: gradient + agro photo */
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.hero-bg-photo {
+  position: absolute;
+  inset: 0;
+}
+
+.hero-slide {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center 40%;
+  opacity: 0;
+  transition: opacity 1.8s ease-in-out;
+}
+
+.hero-slide.active {
+  opacity: 0.45;
+}
+
+.hero-slide::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, var(--crema) 0%, rgba(249,248,244,0.65) 30%, rgba(249,248,244,0.35) 55%, var(--crema) 100%);
+}
+
+/* Slide 1: Cosechadora moderna — drone shot, combine harvester en campo (Pexels: Tom Fisk) */
+.hero-slide:nth-child(1) { background-image: url('https://images.pexels.com/photos/10826782/pexels-photo-10826782.jpeg?auto=compress&cs=tinysrgb&w=1920&h=1080&fit=crop'); filter: saturate(0.8); background-position: center 45%; }
+/* Slide 2: Drone agrícola en acción — spraying crops (Pexels: Magda Ehlers) */
+.hero-slide:nth-child(2) { background-image: url('https://images.pexels.com/photos/34182370/pexels-photo-34182370.jpeg?auto=compress&cs=tinysrgb&w=1920&h=1080&fit=crop'); filter: saturate(0.8); background-position: center 50%; }
+/* Slide 3: Vacas en campo abierto (Pexels: cattle herd pasture) */
+.hero-slide:nth-child(3) { background-image: url('https://images.pexels.com/photos/735968/pexels-photo-735968.jpeg?auto=compress&cs=tinysrgb&w=1920&h=1080&fit=crop'); filter: saturate(0.7); background-position: center 45%; }
+
+.hero-inner {
+  position: relative;
+  z-index: 2;
+  max-width: 860px;
+}
+
+.hero-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--blanco);
+  border: 1px solid var(--crema-dark);
+  padding: 0.35rem 0.9rem;
+  border-radius: 100px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--verde-mid);
+  margin-bottom: 2rem;
+  animation: fadeIn 0.6s ease;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+  letter-spacing: 0.02em;
+}
+
+.flag-ar {
+  width: 18px; height: 13px;
+  background: linear-gradient(180deg, #74ACDF 33%, #fff 33%, #fff 66%, #74ACDF 66%);
+  border-radius: 2px;
+  border: 1px solid rgba(0,0,0,0.08);
+}
+
+.hero h1 {
+  font-family: 'Fraunces', serif;
+  font-size: 4.2rem;
+  line-height: 1.06;
+  letter-spacing: -0.04em;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+  animation: fadeInUp 0.7s ease 0.1s both;
+}
+
+.hero h1 em {
+  font-style: italic;
+  font-weight: 600;
+  color: var(--verde-accent);
+}
+
+.hero-sub {
+  font-size: 1.15rem;
+  line-height: 1.7;
+  color: var(--gris);
+  max-width: 560px;
+  margin: 0 auto 2.5rem;
+  animation: fadeInUp 0.7s ease 0.2s both;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  align-items: center;
+  animation: fadeInUp 0.7s ease 0.3s both;
+  flex-wrap: wrap;
+}
+
+.btn-primary {
+  background: var(--verde);
+  color: var(--crema);
+  padding: 0.95rem 2rem;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 0.95rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s;
+  border: none; cursor: pointer;
+}
+.btn-primary:hover { background: var(--verde-mid); transform: translateY(-2px); box-shadow: 0 12px 35px rgba(26, 51, 17, 0.2); }
+
+.btn-outline {
+  color: var(--carbon-mid);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.92rem;
+  padding: 0.95rem 1.6rem;
+  border: 2px solid var(--crema-dark);
+  border-radius: 10px;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.btn-outline:hover { border-color: var(--verde-accent); color: var(--verde); }
+
+/* ===== HERO SCREENS ===== */
+.hero-screens {
+  margin-top: 4.5rem;
+  animation: fadeInUp 0.8s ease 0.5s both;
+  position: relative;
+}
+
+/* ===== SHARED SCREEN STYLES ===== */
+.screen {
+  background: var(--blanco);
+  border-radius: 14px;
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 20px 70px rgba(0,0,0,0.07), 0 2px 8px rgba(0,0,0,0.03);
+  overflow: hidden;
+}
+
+.screen-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+  background: rgba(249,248,244,0.5);
+}
+
+.screen-dot { width: 8px; height: 8px; border-radius: 50%; }
+.screen-dot.r { background: #EF4444; }
+.screen-dot.y { background: #EAB308; }
+.screen-dot.g { background: #22C55E; }
+
+.screen-bar-title {
+  margin-left: 0.6rem;
+  font-size: 0.68rem;
+  color: var(--gris-light);
+  font-weight: 500;
+}
+
+/* Dashboard screen */
+.hero-dash {
+  max-width: 940px;
+  margin: 0 auto;
+}
+
+.dash-layout {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  min-height: 380px;
+}
+
+.dash-nav {
+  background: var(--verde);
+  padding: 1rem 0;
+}
+
+.dash-nav-brand {
+  padding: 0 1rem 0.8rem;
+  margin-bottom: 0.4rem;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  font-family: 'Fraunces', serif;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--crema);
+  letter-spacing: -0.02em;
+}
+.dash-nav-brand .dn-dot { color: var(--tierra-light); }
+
+.dash-nav-item {
+  padding: 0.5rem 1rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: rgba(255,255,255,0.45);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.dash-nav-item.active { color: #fff; background: rgba(255,255,255,0.08); font-weight: 600; }
+.dash-nav-icon {
+  width: 16px; height: 16px;
+  border-radius: 3px;
+  border: 1.5px solid currentColor;
+  opacity: 0.6;
+}
+.dash-nav-item.active .dash-nav-icon { opacity: 1; background: rgba(255,255,255,0.15); }
+
+.dash-content {
+  padding: 1.3rem;
+  background: var(--crema);
+}
+
+.dash-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.dash-top h3 { font-size: 0.85rem; font-weight: 800; }
+
+.dash-btn-upload {
+  background: var(--verde);
+  color: white;
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  border: none;
+  letter-spacing: 0.01em;
+}
+
+.dash-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.dash-kpi {
+  background: var(--blanco);
+  border: 1px solid rgba(0,0,0,0.04);
+  border-radius: 8px;
+  padding: 0.7rem;
+}
+
+.dash-kpi-label {
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--gris-light);
+  margin-bottom: 0.2rem;
+}
+
+.dash-kpi-val {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--verde-mid);
+}
+.dash-kpi-val.gold { color: var(--tierra); }
+.dash-kpi-val.red { color: var(--rojo-soft); }
+
+.dash-table-head {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--gris-light);
+  border-bottom: 1px solid var(--crema-dark);
+  margin-bottom: 0.3rem;
+}
+
+.dash-table-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.74rem;
+  background: var(--blanco);
+  border-radius: 6px;
+  margin-bottom: 0.25rem;
+  border: 1px solid rgba(0,0,0,0.02);
+  align-items: center;
+}
+
+.dash-table-row .doc-name { font-weight: 600; }
+.dash-table-row .doc-type {
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 0.12rem 0.4rem;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: inline-block;
+  width: fit-content;
+}
+.type-pdf { background: #FEE2E2; color: #DC2626; }
+.type-xlsx { background: #D1FAE5; color: #059669; }
+
+.status-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 100px;
+}
+.status-ok { background: rgba(61,122,28,0.08); color: var(--verde-accent); }
+.status-proc { background: var(--tierra-soft); color: var(--tierra); }
+
+.dash-date { font-size: 0.65rem; color: var(--gris-light); }
+
+/* ===== TAG / TITLE helpers ===== */
+.s-tag {
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--tierra);
+  margin-bottom: 0.8rem;
+}
+
+.s-title {
+  font-family: 'Fraunces', serif;
+  font-size: 2.8rem;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+/* ===== HOW SECTION ===== */
+.how-section {
+  padding: 7rem 2rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.how-desc {
+  color: var(--gris);
+  font-size: 1.05rem;
+  line-height: 1.65;
+  max-width: 540px;
+  margin-bottom: 4rem;
+}
+
+.how-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+}
+
+.how-card {
+  background: var(--blanco);
+  border-radius: 16px;
+  padding: 2.2rem 1.8rem;
+  border: 1px solid rgba(0,0,0,0.04);
+  position: relative;
+  transition: all 0.3s;
+}
+.how-card:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.06); }
+
+.how-num {
+  font-family: 'Fraunces', serif;
+  font-size: 3.5rem;
+  font-weight: 700;
+  color: var(--crema-dark);
+  line-height: 1;
+  margin-bottom: 1rem;
+}
+
+.how-card h3 {
+  font-size: 1.05rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+}
+
+.how-card p {
+  color: var(--gris);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.how-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 1rem;
+}
+
+.how-tag {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: var(--crema);
+  border: 1px solid var(--crema-dark);
+  color: var(--gris);
+}
+
+/* ===== SCREENS SHOWCASE ===== */
+.showcase {
+  padding: 6rem 2rem 7rem;
+  background: var(--crema-warm);
+}
+
+.showcase-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.showcase .s-title { max-width: 600px; margin-bottom: 1rem; }
+
+.showcase-desc {
+  color: var(--gris);
+  font-size: 1.05rem;
+  line-height: 1.65;
+  max-width: 520px;
+  margin-bottom: 3rem;
+}
+
+.showcase-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+/* Individual showcase screens */
+.sc-screen {
+  background: var(--blanco);
+  border-radius: 14px;
+  border: 1px solid rgba(0,0,0,0.05);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.04);
+  overflow: hidden;
+  transition: all 0.3s;
+}
+.sc-screen:hover { transform: translateY(-3px); box-shadow: 0 14px 45px rgba(0,0,0,0.07); }
+
+.sc-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.55rem 0.9rem;
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+  background: rgba(249,248,244,0.4);
+}
+.sc-bar .screen-dot { width: 7px; height: 7px; }
+.sc-bar-title { margin-left: 0.5rem; font-size: 0.62rem; color: var(--gris-light); font-weight: 500; }
+
+.sc-body { padding: 1.2rem; }
+
+.sc-section-tag {
+  font-size: 0.58rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--tierra);
+  margin-bottom: 0.6rem;
+}
+
+.sc-title {
+  font-size: 0.88rem;
+  font-weight: 800;
+  margin-bottom: 0.8rem;
+  color: var(--carbon);
+}
+
+/* Excel-like table */
+.xl-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.65rem;
+}
+
+.xl-table th {
+  background: var(--verde);
+  color: white;
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+  font-weight: 700;
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.xl-table th:first-child { border-radius: 4px 0 0 0; }
+.xl-table th:last-child { border-radius: 0 4px 0 0; }
+
+.xl-table td {
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--crema-warm);
+}
+
+.xl-table tr:nth-child(even) td { background: rgba(249,248,244,0.5); }
+
+.xl-table .num { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.xl-table .total td { font-weight: 800; background: var(--crema-warm); border-top: 2px solid var(--verde); }
+.xl-table .positive { color: var(--verde-accent); }
+.xl-table .negative { color: var(--rojo-soft); }
+
+/* Bar chart mock */
+.bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  height: 100px;
+  padding: 0.5rem 0;
+}
+
+.bar-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.bar {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  transition: height 0.5s ease;
+}
+
+.bar.verde { background: var(--verde-accent); }
+.bar.tierra { background: var(--tierra); }
+.bar.gris-bar { background: var(--crema-dark); }
+
+.bar-label {
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: var(--gris-light);
+  text-align: center;
+}
+
+.bar-val {
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: var(--carbon);
+}
+
+/* Screen description under */
+.sc-desc {
+  padding: 1rem 1.2rem 0;
+  margin-bottom: -0.3rem;
+}
+
+.sc-desc h4 {
+  font-size: 0.82rem;
+  font-weight: 800;
+  margin-bottom: 0.2rem;
+}
+
+.sc-desc p {
+  font-size: 0.72rem;
+  color: var(--gris);
+  line-height: 1.5;
+}
+
+/* ===== AGRO IMAGE SECTION ===== */
+.agro-break {
+  position: relative;
+  height: 360px;
+  overflow: hidden;
+}
+
+.agro-break-img {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, var(--crema-warm) 0%, transparent 30%, transparent 70%, var(--crema) 100%),
+    url('https://images.pexels.com/photos/974314/pexels-photo-974314.jpeg?auto=compress&cs=tinysrgb&w=1920&h=1080&fit=crop') center 45% / cover no-repeat;
+  filter: saturate(0.55);
+  opacity: 0.45;
+}
+
+.agro-break-overlay {
+  position: absolute;
+  bottom: 2.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(26, 51, 17, 0.92);
+  backdrop-filter: blur(16px);
+  padding: 1.5rem 2.5rem;
+  border-radius: 14px;
+  color: var(--crema);
+  text-align: center;
+  max-width: 600px;
+}
+
+.agro-break-overlay p {
+  font-family: 'Fraunces', serif;
+  font-size: 1.15rem;
+  font-style: italic;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+.agro-break-overlay span {
+  display: block;
+  margin-top: 0.5rem;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--tierra-light);
+  font-style: normal;
+  letter-spacing: 0.04em;
+}
+
+/* ===== AGRO STRIP (horizontal photo) ===== */
+.agro-strip {
+  position: relative;
+  height: 180px;
+  overflow: hidden;
+}
+
+.agro-strip-img {
+  position: absolute;
+  inset: 0;
+  filter: saturate(0.6) brightness(1.05);
+  opacity: 0.35;
+}
+
+/* ===== ASSISTANT CHAT DEMO ===== */
+.assistant-demo {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 700px;
+}
+
+.chat-msg {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+}
+
+.chat-avatar {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  font-weight: 800;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+
+.chat-av-user { background: var(--crema-dark); color: var(--gris); }
+.chat-av-ai { background: var(--verde); color: white; }
+
+.chat-bubble {
+  border-radius: 12px;
+  padding: 0.8rem 1rem;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  max-width: 560px;
+}
+
+.chat-user {
+  background: var(--crema-warm);
+  color: var(--carbon);
+  border: 1px solid var(--crema-dark);
+}
+
+.chat-ai {
+  background: var(--blanco);
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+.chat-ai-status {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--verde-accent);
+  margin-bottom: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.chat-ai-status::before {
+  content: '';
+  width: 6px; height: 6px;
+  background: var(--verde-accent);
+  border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.chat-ai-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(61, 122, 28, 0.06);
+  border: 1px solid rgba(61, 122, 28, 0.12);
+  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--carbon);
+}
+
+.chat-download {
+  color: var(--verde-accent);
+  font-weight: 700;
+  font-size: 0.68rem;
+  margin-left: 0.5rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.chat-ai-text {
+  color: var(--gris);
+  font-size: 0.8rem;
+}
+
+/* ===== AUDIENCE ===== */
+.audience {
+  padding: 7rem 2rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.audience .s-title { margin-bottom: 3rem; }
+
+.audience-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.aud-card {
+  background: var(--blanco);
+  border-radius: 16px;
+  padding: 2.2rem;
+  border: 1px solid rgba(0,0,0,0.04);
+  transition: all 0.3s;
+}
+.aud-card:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.05); }
+
+.aud-icon {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.2rem;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--blanco);
+}
+.aud-icon.ic-1 { background: var(--verde); }
+.aud-icon.ic-2 { background: var(--tierra); }
+.aud-icon.ic-3 { background: var(--carbon-mid); }
+.aud-icon.ic-4 { background: var(--verde-accent); }
+
+.aud-card h3 { font-size: 1rem; font-weight: 800; margin-bottom: 0.5rem; }
+.aud-card p { color: var(--gris); font-size: 0.88rem; line-height: 1.6; }
+
+/* ===== VISION SECTION ===== */
+.vision {
+  padding: 6rem 2rem;
+  background: var(--verde);
+  color: var(--crema);
+  position: relative;
+  overflow: hidden;
+}
+
+.vision::before {
+  content: '';
+  position: absolute;
+  top: -30%; right: -10%;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(61, 122, 28, 0.2), transparent 70%);
+  pointer-events: none;
+}
+
+.vision-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 2;
+}
+
+.vision .s-tag { color: var(--tierra-light); }
+
+.vision .s-title {
+  color: var(--crema);
+  max-width: 600px;
+  margin-bottom: 1rem;
+}
+
+.vision-desc {
+  color: rgba(250, 248, 244, 0.7);
+  font-size: 1.05rem;
+  line-height: 1.65;
+  max-width: 540px;
+  margin-bottom: 3.5rem;
+}
+
+.vision-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.2rem;
+}
+
+.vision-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 2rem;
+  transition: all 0.3s;
+}
+
+.vision-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
+}
+
+.vision-card-icon {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  background: rgba(212, 173, 60, 0.15);
+  border: 1px solid rgba(212, 173, 60, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.vision-card-icon svg {
+  width: 20px; height: 20px;
+  stroke: var(--tierra-light);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.vision-card h4 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+  color: var(--crema);
+}
+
+.vision-card p {
+  color: rgba(250, 248, 244, 0.6);
+  font-size: 0.84rem;
+  line-height: 1.6;
+}
+
+/* ===== POSITIONING ===== */
+.positioning {
+  padding: 6rem 2rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.positioning .s-title { margin-bottom: 3rem; }
+
+.pos-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+}
+
+.pos-box {
+  padding: 2.2rem;
+  border-radius: 16px;
+}
+
+.pos-box.no {
+  background: var(--blanco);
+  border: 1px solid rgba(0,0,0,0.05);
+}
+
+.pos-box.yes {
+  background: var(--verde);
+  color: var(--crema);
+}
+
+.pos-box h3 {
+  font-size: 1rem;
+  font-weight: 800;
+  margin-bottom: 1.4rem;
+}
+
+.pos-row {
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 0.9rem;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.pos-mark {
+  flex-shrink: 0;
+  width: 20px; height: 20px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 800;
+  margin-top: 0.1rem;
+}
+
+.pos-box.no .pos-mark { background: rgba(0,0,0,0.05); color: var(--gris-light); }
+.pos-box.yes .pos-mark { background: rgba(255,255,255,0.12); color: var(--tierra-light); }
+.pos-box.no .pos-text { color: var(--gris); }
+.pos-box.yes .pos-text { color: rgba(250,248,244,0.85); }
+
+/* ===== CTA ===== */
+.cta {
+  padding: 8rem 2rem;
+  text-align: center;
+  position: relative;
+}
+
+.cta::before {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 700px; height: 500px;
+  background: radial-gradient(ellipse, rgba(61,122,28,0.05), transparent 70%);
+  pointer-events: none;
+}
+
+.cta-box {
+  position: relative;
+  z-index: 2;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.cta .s-title { font-size: 3rem; margin-bottom: 1rem; }
+
+.cta-p {
+  color: var(--gris);
+  font-size: 1.02rem;
+  line-height: 1.65;
+  margin-bottom: 2.5rem;
+}
+
+.wl-form {
+  display: flex;
+  gap: 0.65rem;
+  max-width: 440px;
+  margin: 0 auto 0.7rem;
+}
+
+.wl-form input {
+  flex: 1;
+  padding: 0.85rem 1.1rem;
+  border-radius: 10px;
+  border: 2px solid var(--crema-dark);
+  background: var(--blanco);
+  font-family: inherit;
+  font-size: 0.92rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.wl-form input:focus { border-color: var(--verde-accent); }
+.wl-form input::placeholder { color: var(--gris-light); }
+
+.wl-form button {
+  padding: 0.85rem 1.5rem;
+  border-radius: 10px;
+  background: var(--verde);
+  color: var(--crema);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.92rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.25s;
+  white-space: nowrap;
+}
+.wl-form button:hover { background: var(--verde-mid); transform: translateY(-1px); }
+
+.wl-fine { font-size: 0.72rem; color: var(--gris-light); }
+
+.wl-ok {
+  display: none;
+  background: rgba(61,122,28,0.08);
+  border: 1px solid rgba(61,122,28,0.18);
+  padding: 1rem 1.5rem;
+  border-radius: 10px;
+  color: var(--verde-mid);
+  font-weight: 700;
+  max-width: 440px;
+  margin: 0 auto;
+  font-size: 0.92rem;
+}
+
+/* ===== FOOTER ===== */
+footer {
+  padding: 2.2rem 3rem;
+  border-top: 1px solid rgba(0,0,0,0.05);
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+footer p { color: var(--gris-light); font-size: 0.72rem; }
+
+/* ===== ANIMATIONS ===== */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(25px);
+  transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal.vis { opacity: 1; transform: translateY(0); }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 900px) {
+  nav { padding: 0.7rem 1.2rem; }
+  .nav-links a:not(.btn-nav) { display: none; }
+  .hero h1 { font-size: 2.5rem; }
+  .dash-layout { grid-template-columns: 1fr; }
+  .dash-nav { display: none; }
+  .how-steps { grid-template-columns: 1fr; }
+  .showcase-grid { grid-template-columns: 1fr; }
+  .audience-grid { grid-template-columns: 1fr; }
+  .vision-grid { grid-template-columns: 1fr; }
+  .pos-cols { grid-template-columns: 1fr; }
+  .s-title { font-size: 2rem !important; }
+  .wl-form { flex-direction: column; }
+  footer { flex-direction: column; gap: 0.6rem; text-align: center; }
+  .agro-break { height: 280px; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="logo">AgroForma<span class="logo-dot">.</span></a>
+  <div class="nav-links">
+    <a href="#como">Cómo Funciona</a>
+    <a href="#pantallas">Qué Genera</a>
+    <a href="#quien">Para Quién</a>
+    <a href="#waitlist" class="btn-nav">Quiero Acceso</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg">
+    <div class="hero-bg-photo">
+      <div class="hero-slide active"></div>
+      <div class="hero-slide"></div>
+      <div class="hero-slide"></div>
+    </div>
+  </div>
+  <div class="hero-inner">
+    <div class="hero-flag">
+      <div class="flag-ar"></div>
+      La inteligencia artificial de la empresa agropecuaria argentina
+    </div>
+    <h1>Dale <em>forma</em> a toda<br>tu documentación</h1>
+    <p class="hero-sub">Cargá toda tu documentación y dejá que la IA la entienda. AgroForma no solo genera reportes y planillas — aprende tu empresa, campaña a campaña, y se convierte en un asistente que te ayuda a tomar decisiones.</p>
+    <div class="hero-actions">
+      <a href="#waitlist" class="btn-primary">Quiero acceso anticipado</a>
+      <a href="#como" class="btn-outline">Ver cómo funciona</a>
+    </div>
+
+    <!-- Dashboard mockup -->
+    <div class="hero-screens">
+      <div class="screen hero-dash">
+        <div class="screen-bar">
+          <div class="screen-dot r"></div>
+          <div class="screen-dot y"></div>
+          <div class="screen-dot g"></div>
+          <span class="screen-bar-title">app.agroforma.com.ar — Estancia Los Álamos S.A. — Campaña 2025/26</span>
+        </div>
+        <div class="dash-layout">
+          <div class="dash-nav">
+            <div class="dash-nav-brand">AgroForma<span class="dn-dot">.</span></div>
+            <div class="dash-nav-item active"><div class="dash-nav-icon"></div> Dashboard</div>
+            <div class="dash-nav-item"><div class="dash-nav-icon"></div> Documentos</div>
+            <div class="dash-nav-item"><div class="dash-nav-icon"></div> Agricultura</div>
+            <div class="dash-nav-item"><div class="dash-nav-icon"></div> Ganadería</div>
+            <div class="dash-nav-item"><div class="dash-nav-icon"></div> Patrimonio</div>
+            <div class="dash-nav-item"><div class="dash-nav-icon"></div> Financiero</div>
+            <div class="dash-nav-item"><div class="dash-nav-icon"></div> Reportes</div>
+            <div class="dash-nav-item"><div class="dash-nav-icon"></div> Descargas</div>
+          </div>
+          <div class="dash-content">
+            <div class="dash-top">
+              <h3>Dashboard — Campaña 2025/26</h3>
+              <button class="dash-btn-upload">+ Subir documentos</button>
+            </div>
+            <div class="dash-kpis">
+              <div class="dash-kpi">
+                <div class="dash-kpi-label">Docs. procesados</div>
+                <div class="dash-kpi-val">47</div>
+              </div>
+              <div class="dash-kpi">
+                <div class="dash-kpi-label">Has. totales</div>
+                <div class="dash-kpi-val">3.200</div>
+              </div>
+              <div class="dash-kpi">
+                <div class="dash-kpi-label">Cabezas totales</div>
+                <div class="dash-kpi-val">1.850</div>
+              </div>
+              <div class="dash-kpi">
+                <div class="dash-kpi-label">Pasivos USD</div>
+                <div class="dash-kpi-val gold">285k</div>
+              </div>
+            </div>
+            <div class="dash-table-head">
+              <span>Documento</span>
+              <span>Tipo</span>
+              <span>Estado</span>
+              <span>Fecha</span>
+            </div>
+            <div class="dash-table-row">
+              <span class="doc-name">Balance_General_2025.pdf</span>
+              <span><span class="doc-type type-pdf">PDF</span></span>
+              <span><span class="status-badge status-ok">Procesado</span></span>
+              <span class="dash-date">Hace 2hs</span>
+            </div>
+            <div class="dash-table-row">
+              <span class="doc-name">Stock_Hacienda_Mar26.xlsx</span>
+              <span><span class="doc-type type-xlsx">XLSX</span></span>
+              <span><span class="status-badge status-ok">Procesado</span></span>
+              <span class="dash-date">Hace 3hs</span>
+            </div>
+            <div class="dash-table-row">
+              <span class="doc-name">Extracto_Galicia_Feb26.pdf</span>
+              <span><span class="doc-type type-pdf">PDF</span></span>
+              <span><span class="status-badge status-proc">Procesando...</span></span>
+              <span class="dash-date">Hace 5min</span>
+            </div>
+            <div class="dash-table-row">
+              <span class="doc-name">Liq_Soja_ACA_2025.pdf</span>
+              <span><span class="doc-type type-pdf">PDF</span></span>
+              <span><span class="status-badge status-ok">Procesado</span></span>
+              <span class="dash-date">Ayer</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- HOW IT WORKS -->
+<section class="how-section" id="como">
+  <div class="s-tag reveal">Cómo funciona</div>
+  <div class="s-title reveal">No cambia cómo trabajás.<br>Estructura lo que ya tenés.</div>
+  <p class="how-desc reveal">Seguí usando tus planillas, tu contador, tu metodología. AgroForma toma todo eso y le da forma: información lista para usar, presentar y decidir.</p>
+
+  <div class="how-steps">
+    <div class="how-card reveal">
+      <div class="how-num">01</div>
+      <h3>Cargá tu documentación</h3>
+      <p>Subí todo lo que tengas: balances, extractos bancarios, liquidaciones de granos o hacienda, planillas de stock, comprobantes de AFIP. PDF, Excel, lo que sea.</p>
+      <div class="how-tags">
+        <span class="how-tag">PDF</span>
+        <span class="how-tag">Excel</span>
+        <span class="how-tag">Escaneados</span>
+        <span class="how-tag">Fotos</span>
+      </div>
+    </div>
+    <div class="how-card reveal">
+      <div class="how-num">02</div>
+      <h3>Se estructura automáticamente</h3>
+      <p>La IA lee cada documento, identifica qué tipo de información contiene y la clasifica en tu tablero central: agricultura, ganadería, patrimonio, financiero.</p>
+      <div class="how-tags">
+        <span class="how-tag">Reconocimiento IA</span>
+        <span class="how-tag">Clasificación</span>
+        <span class="how-tag">Validación</span>
+      </div>
+    </div>
+    <div class="how-card reveal">
+      <div class="how-num">03</div>
+      <h3>Pedí lo que necesites</h3>
+      <p>Usá reportes predefinidos o pedile al asistente lo que quieras: una situación patrimonial, proyecciones, una planilla a medida, un Excel comparativo entre campañas. Si lo podés describir, AgroForma lo genera.</p>
+      <div class="how-tags">
+        <span class="how-tag">Reportes</span>
+        <span class="how-tag">Excels</span>
+        <span class="how-tag">PDF</span>
+        <span class="how-tag">Proyecciones</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- SCREENS SHOWCASE -->
+<section class="showcase" id="pantallas">
+  <div class="showcase-inner">
+    <div class="s-tag reveal">Qué genera AgroForma</div>
+    <div class="s-title reveal">Un tablero, infinitas salidas</div>
+    <p class="showcase-desc reveal">A medida que cargás documentación, el tablero se completa. Desde ahí descargá reportes predefinidos o pedile al asistente que te genere lo que necesites — en el formato que quieras.</p>
+
+    <div class="showcase-grid">
+      <!-- Screen 1: Situación Patrimonial -->
+      <div class="sc-screen reveal">
+        <div class="sc-bar">
+          <div class="screen-dot r"></div><div class="screen-dot y"></div><div class="screen-dot g"></div>
+          <span class="sc-bar-title">AgroForma — Reporte generado</span>
+        </div>
+        <div class="sc-body">
+          <div class="sc-section-tag">Reporte</div>
+          <div class="sc-title">Situación Patrimonial — Mar 2026</div>
+          <table class="xl-table">
+            <thead>
+              <tr><th>Concepto</th><th>Detalle</th><th style="text-align:right">USD</th></tr>
+            </thead>
+            <tbody>
+              <tr><td style="font-weight:700">ACTIVOS</td><td></td><td></td></tr>
+              <tr><td>Campos propios</td><td>3.200 has — Buenos Aires</td><td class="num">4.480.000</td></tr>
+              <tr><td>Hacienda</td><td>1.850 cabezas</td><td class="num">925.000</td></tr>
+              <tr><td>Maquinaria</td><td>12 unidades</td><td class="num">680.000</td></tr>
+              <tr><td>Granos en stock</td><td>Soja + Maíz</td><td class="num">312.000</td></tr>
+              <tr><td>Cuentas bancarias</td><td>Galicia + Nación</td><td class="num">145.000</td></tr>
+              <tr><td style="font-weight:700">PASIVOS</td><td></td><td></td></tr>
+              <tr><td>Deuda bancaria</td><td>Galicia L/P</td><td class="num negative">−285.000</td></tr>
+              <tr><td>Proveedores</td><td>Insumos campaña</td><td class="num negative">−62.000</td></tr>
+              <tr class="total"><td>PATRIMONIO NETO</td><td></td><td class="num positive">6.195.000</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Screen 2: Proyección de campaña -->
+      <div class="sc-screen reveal">
+        <div class="sc-bar">
+          <div class="screen-dot r"></div><div class="screen-dot y"></div><div class="screen-dot g"></div>
+          <span class="sc-bar-title">AgroForma — Planilla generada</span>
+        </div>
+        <div class="sc-body">
+          <div class="sc-section-tag">Proyección</div>
+          <div class="sc-title">Margen Bruto por Cultivo — 2025/26</div>
+          <table class="xl-table">
+            <thead>
+              <tr><th>Cultivo</th><th style="text-align:right">Has</th><th style="text-align:right">Rinde tn/ha</th><th style="text-align:right">Precio USD/tn</th><th style="text-align:right">Costo USD/ha</th><th style="text-align:right">Margen USD/ha</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Soja 1°</td><td class="num">800</td><td class="num">3.2</td><td class="num">340</td><td class="num">520</td><td class="num positive">568</td></tr>
+              <tr><td>Maíz</td><td class="num">600</td><td class="num">9.5</td><td class="num">185</td><td class="num">680</td><td class="num positive">1.078</td></tr>
+              <tr><td>Trigo</td><td class="num">400</td><td class="num">4.0</td><td class="num">240</td><td class="num">480</td><td class="num positive">480</td></tr>
+              <tr><td>Soja 2°</td><td class="num">400</td><td class="num">2.1</td><td class="num">340</td><td class="num">420</td><td class="num positive">294</td></tr>
+              <tr class="total"><td>TOTAL</td><td class="num">2.200</td><td></td><td></td><td></td><td class="num positive">Promedio: 637</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Screen 3: Supuestos -->
+      <div class="sc-screen reveal">
+        <div class="sc-bar">
+          <div class="screen-dot r"></div><div class="screen-dot y"></div><div class="screen-dot g"></div>
+          <span class="sc-bar-title">AgroForma — Supuestos de trabajo</span>
+        </div>
+        <div class="sc-body">
+          <div class="sc-section-tag">Parámetros</div>
+          <div class="sc-title">Supuestos de Campaña 2025/26</div>
+          <table class="xl-table">
+            <thead>
+              <tr><th>Variable</th><th>Escenario base</th><th>Optimista</th><th>Pesimista</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Precio Soja (USD/tn)</td><td class="num">340</td><td class="num positive">380</td><td class="num negative">290</td></tr>
+              <tr><td>Precio Maíz (USD/tn)</td><td class="num">185</td><td class="num positive">210</td><td class="num negative">155</td></tr>
+              <tr><td>Rinde Soja 1° (tn/ha)</td><td class="num">3.2</td><td class="num positive">3.8</td><td class="num negative">2.4</td></tr>
+              <tr><td>Rinde Maíz (tn/ha)</td><td class="num">9.5</td><td class="num positive">11.0</td><td class="num negative">7.5</td></tr>
+              <tr><td>Tipo de cambio</td><td class="num">1.150</td><td class="num">1.050</td><td class="num">1.350</td></tr>
+              <tr><td>Tasa de interés</td><td class="num">24% TNA</td><td class="num positive">18%</td><td class="num negative">32%</td></tr>
+              <tr><td>Valor hacienda USD/kg</td><td class="num">2.8</td><td class="num positive">3.2</td><td class="num negative">2.3</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Screen 4: Resultado por actividad -->
+      <div class="sc-screen reveal">
+        <div class="sc-bar">
+          <div class="screen-dot r"></div><div class="screen-dot y"></div><div class="screen-dot g"></div>
+          <span class="sc-bar-title">AgroForma — Resultado</span>
+        </div>
+        <div class="sc-body">
+          <div class="sc-section-tag">Gestión</div>
+          <div class="sc-title">Resultado por Actividad (USD)</div>
+          <div class="bar-chart">
+            <div class="bar-group">
+              <div class="bar-val">1.4M</div>
+              <div class="bar verde" style="height:85px"></div>
+              <div class="bar-label">Agricultura</div>
+            </div>
+            <div class="bar-group">
+              <div class="bar-val">620k</div>
+              <div class="bar verde" style="height:48px"></div>
+              <div class="bar-label">Cría</div>
+            </div>
+            <div class="bar-group">
+              <div class="bar-val">380k</div>
+              <div class="bar tierra" style="height:32px"></div>
+              <div class="bar-label">Invernada</div>
+            </div>
+            <div class="bar-group">
+              <div class="bar-val">−85k</div>
+              <div class="bar gris-bar" style="height:12px"></div>
+              <div class="bar-label">G. Indir.</div>
+            </div>
+            <div class="bar-group">
+              <div class="bar-val">−145k</div>
+              <div class="bar gris-bar" style="height:16px"></div>
+              <div class="bar-label">Financiero</div>
+            </div>
+          </div>
+          <div style="margin-top:1rem; padding-top: 0.8rem; border-top: 2px solid var(--verde);">
+            <table class="xl-table" style="margin:0">
+              <tr class="total"><td>RESULTADO NETO</td><td></td><td class="num positive" style="font-size:0.85rem">USD 2.170.000</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Screen 5: Multi-campo / Pool -->
+      <div class="sc-screen reveal">
+        <div class="sc-bar">
+          <div class="screen-dot r"></div><div class="screen-dot y"></div><div class="screen-dot g"></div>
+          <span class="sc-bar-title">AgroForma — Vista consolidada</span>
+        </div>
+        <div class="sc-body">
+          <div class="sc-section-tag">Consolidado</div>
+          <div class="sc-title">Campos — Campaña 2025/26</div>
+          <table class="xl-table">
+            <thead>
+              <tr><th>Campo</th><th>Provincia</th><th style="text-align:right">Has</th><th style="text-align:right">Agrícola</th><th style="text-align:right">Ganadero</th><th>Estado</th></tr>
+            </thead>
+            <tbody>
+              <tr><td style="font-weight:600">Los Álamos</td><td>Buenos Aires</td><td class="num">1.200</td><td class="num">800</td><td class="num">400</td><td><span class="status-badge status-ok" style="font-size:0.58rem">Completo</span></td></tr>
+              <tr><td style="font-weight:600">La Esperanza</td><td>Córdoba</td><td class="num">850</td><td class="num">850</td><td class="num">—</td><td><span class="status-badge status-ok" style="font-size:0.58rem">Completo</span></td></tr>
+              <tr><td style="font-weight:600">San Martín</td><td>Santa Fe</td><td class="num">620</td><td class="num">400</td><td class="num">220</td><td><span class="status-badge status-proc" style="font-size:0.58rem">Parcial</span></td></tr>
+              <tr><td style="font-weight:600">El Porvenir</td><td>Entre Ríos</td><td class="num">530</td><td class="num">530</td><td class="num">—</td><td><span class="status-badge status-ok" style="font-size:0.58rem">Completo</span></td></tr>
+              <tr class="total"><td>4 CAMPOS</td><td></td><td class="num">3.200</td><td class="num">2.580</td><td class="num">620</td><td></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Screen 6: Asistente IA -->
+      <div class="sc-screen reveal" style="grid-column: 1 / -1;">
+        <div class="sc-bar">
+          <div class="screen-dot r"></div><div class="screen-dot y"></div><div class="screen-dot g"></div>
+          <span class="sc-bar-title">AgroForma — Asistente</span>
+        </div>
+        <div class="sc-body">
+          <div class="sc-section-tag">Asistente inteligente</div>
+          <div class="sc-title">Pedile lo que necesites. Te lo genera.</div>
+          <div class="assistant-demo">
+            <div class="chat-msg user-msg">
+              <div class="chat-avatar chat-av-user">Vos</div>
+              <div class="chat-bubble chat-user">Generame un Excel con el margen bruto por campo comparando campaña actual vs. anterior, y sumale una hoja con los supuestos de precio.</div>
+            </div>
+            <div class="chat-msg ai-msg">
+              <div class="chat-avatar chat-av-ai">AF</div>
+              <div class="chat-bubble chat-ai">
+                <div class="chat-ai-status">Generando reporte...</div>
+                <div class="chat-ai-file">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--verde-accent)" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  <span>Margen_Bruto_x_Campo_2025-26.xlsx</span>
+                  <span class="chat-download">Descargar</span>
+                </div>
+                <p class="chat-ai-text">Listo. Armé el Excel con dos hojas: "Margen por Campo" compara las dos campañas para los 4 campos, y "Supuestos" tiene los precios FOB, tipo de cambio y costos base que usé. ¿Querés que le agregue una tercer hoja con el análisis de sensibilidad?</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- VISION: No es solo un procesador de documentos -->
+<section class="vision">
+  <div class="vision-inner">
+    <div class="s-tag reveal">Más que reportes</div>
+    <div class="s-title reveal">AgroForma aprende tu empresa y crece con ella</div>
+    <p class="vision-desc reveal">Cada documento que subís no solo genera un reporte — construye un modelo vivo de tu operación. Con el tiempo, AgroForma conoce tu empresa: tus campos, tus cultivos, tu rodeo, tus números. Y eso cambia todo.</p>
+
+    <div class="vision-grid">
+      <div class="vision-card reveal">
+        <div class="vision-card-icon">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <h4>Tu empresa, siempre actualizada</h4>
+        <p>Cada documento nuevo actualiza el perfil de tu empresa. No arrancás de cero cada vez que necesitás un informe — la información se acumula y se mantiene viva.</p>
+      </div>
+      <div class="vision-card reveal">
+        <div class="vision-card-icon">
+          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        </div>
+        <h4>Un asistente que conoce tu operación</h4>
+        <p>No es IA genérica. Cuando le preguntás si te conviene vender la soja ahora, cruza tu stock, tus costos, tus deudas y los precios de mercado. Responde con contexto.</p>
+      </div>
+      <div class="vision-card reveal">
+        <div class="vision-card-icon">
+          <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <h4>Comparación entre campañas</h4>
+        <p>Con la data de 2024/25 y 2025/26 podés comparar márgenes, rendimientos y costos automáticamente. Lo que hoy hace un asesor caro o un Excel que nadie mantiene.</p>
+      </div>
+      <div class="vision-card reveal">
+        <div class="vision-card-icon">
+          <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        </div>
+        <h4>Señales y alertas proactivas</h4>
+        <p>"Tu ratio de endeudamiento supera el límite que acepta Galicia." "Tu stock de hacienda bajó 15% vs. mismo mes del año pasado." Información que llega antes de que la necesites.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- AGRO BREAK IMAGE -->
+<div class="agro-break reveal">
+  <div class="agro-break-img"></div>
+  <div class="agro-break-overlay">
+    <p>"La información ya está en tu empresa. Solo necesita que alguien le dé forma."</p>
+    <span>AgroForma — La inteligencia artificial de la empresa agropecuaria argentina</span>
+  </div>
+</div>
+
+<!-- AUDIENCE -->
+<section class="audience" id="quien">
+  <div class="s-tag reveal">Para quién</div>
+  <div class="s-title reveal">Para todo el campo argentino.</div>
+  <div class="audience-grid">
+    <div class="aud-card reveal">
+      <div class="aud-icon ic-1"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+      <h3>Empresas familiares agropecuarias</h3>
+      <p>Que manejan campos mixtos con agricultura y ganadería, tienen la información dispersa entre el productor, el contador y el administrador, y necesitan ordenarla para pedir créditos, planificar campañas o tomar decisiones.</p>
+    </div>
+    <div class="aud-card reveal">
+      <div class="aud-icon ic-2"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>
+      <h3>Grupos y pools de siembra</h3>
+      <p>Que administran múltiples campos y necesitan consolidar información de distintas unidades productivas en un solo lugar para tomar decisiones y reportar a socios e inversores.</p>
+    </div>
+    <div class="aud-card reveal">
+      <div class="aud-icon ic-3"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+      <h3>Contadores y estudios contables</h3>
+      <p>Que manejan múltiples clientes agropecuarios y necesitan estandarizar y agilizar la generación de informes, calificaciones bancarias y balances sin duplicar trabajo.</p>
+    </div>
+    <div class="aud-card reveal">
+      <div class="aud-icon ic-4"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg></div>
+      <h3>Asesores y consultores</h3>
+      <p>Que acompañan empresas en la toma de decisiones y necesitan datos consolidados, comparables y actualizados para hacer seguimiento de gestión y benchmarking.</p>
+    </div>
+  </div>
+</section>
+
+<!-- POSITIONING -->
+<section class="positioning">
+  <div class="s-tag reveal">Filosofía</div>
+  <div class="s-title reveal">Una herramienta, no un sistema</div>
+  <div class="pos-cols">
+    <div class="pos-box no reveal">
+      <h3>AgroForma no es</h3>
+      <div class="pos-row">
+        <div class="pos-mark">—</div>
+        <div class="pos-text">Un ERP que te obliga a cambiar cómo trabajás</div>
+      </div>
+      <div class="pos-row">
+        <div class="pos-mark">—</div>
+        <div class="pos-text">Un sistema contable que reemplaza a tu contador</div>
+      </div>
+      <div class="pos-row">
+        <div class="pos-mark">—</div>
+        <div class="pos-text">Un software con módulos que necesitan capacitación</div>
+      </div>
+      <div class="pos-row">
+        <div class="pos-mark">—</div>
+        <div class="pos-text">Una plataforma rígida con formularios fijos</div>
+      </div>
+      <div class="pos-row">
+        <div class="pos-mark">—</div>
+        <div class="pos-text">Otro sistema más para cargar datos manualmente</div>
+      </div>
+    </div>
+    <div class="pos-box yes reveal">
+      <h3>AgroForma es</h3>
+      <div class="pos-row">
+        <div class="pos-mark">+</div>
+        <div class="pos-text">Una herramienta que se adapta a tu forma de trabajar</div>
+      </div>
+      <div class="pos-row">
+        <div class="pos-mark">+</div>
+        <div class="pos-text">Un lugar donde tirar toda tu documentación y sacar orden</div>
+      </div>
+      <div class="pos-row">
+        <div class="pos-mark">+</div>
+        <div class="pos-text">Un generador de reportes y planillas desde lo que ya tenés</div>
+      </div>
+      <div class="pos-row">
+        <div class="pos-mark">+</div>
+        <div class="pos-text">Tan simple como subir archivos y pedir lo que necesitás</div>
+      </div>
+      <div class="pos-row">
+        <div class="pos-mark">+</div>
+        <div class="pos-text">IA que entiende la documentación agropecuaria argentina</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta" id="waitlist">
+  <div class="cta-box">
+    <div class="s-tag reveal">Acceso anticipado</div>
+    <div class="s-title reveal">Sé de los primeros en darle forma a tu información</div>
+    <p class="cta-p reveal">Estamos construyendo AgroForma con feedback real de productores, contadores y asesores. Dejá tu email y te avisamos cuando esté listo.</p>
+    <div class="wl-form reveal" id="wlForm">
+      <input type="email" placeholder="tu@email.com" id="emailInput">
+      <button onclick="handleSubmit()">Quiero acceso</button>
+    </div>
+    <div class="wl-ok" id="wlOk">Listo — te avisamos apenas AgroForma esté disponible.</div>
+    <p class="wl-fine reveal">Sin spam. Solo te contactamos cuando haya algo para probar.</p>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <a href="#" class="logo" style="font-size:1.15rem;">AgroForma<span class="logo-dot">.</span></a>
+  <p>2026 AgroForma — La inteligencia artificial de la empresa agropecuaria argentina.</p>
+</footer>
+
+<script>
+const obs = new IntersectionObserver((entries) => {
+  entries.forEach((e, i) => {
+    if (e.isIntersecting) {
+      setTimeout(() => e.target.classList.add('vis'), i * 50);
+      obs.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.07, rootMargin: '0px 0px -25px 0px' });
+document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+
+function handleSubmit() {
+  const v = document.getElementById('emailInput').value;
+  if (v && v.includes('@')) {
+    document.getElementById('wlForm').style.display = 'none';
+    document.getElementById('wlOk').style.display = 'block';
+  }
+}
+document.getElementById('emailInput').addEventListener('keypress', e => {
+  if (e.key === 'Enter') handleSubmit();
+});
+
+window.addEventListener('scroll', () => {
+  document.querySelector('nav').style.padding =
+    window.scrollY > 40 ? '0.6rem 3rem' : '0.9rem 3rem';
+});
+
+// Hero background slideshow
+(function() {
+  const slides = document.querySelectorAll('.hero-slide');
+  if (!slides.length) return;
+  let current = 0;
+  const interval = 5000;
+
+  function next() {
+    slides[current].classList.remove('active');
+    current = (current + 1) % slides.length;
+    slides[current].classList.add('active');
+  }
+
+  setInterval(next, interval);
+})();
+</script>
+
+</body>
+</html>
