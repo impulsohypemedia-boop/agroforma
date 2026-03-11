@@ -6,11 +6,10 @@ import { useState, useEffect } from "react";
 import { LayoutDashboard, FileText, BarChart2, MessageSquare, Settings, LayoutGrid, Sprout, Beef, ChevronDown } from "lucide-react";
 
 const navItems = [
-  { label: "Dashboard",     icon: LayoutDashboard, href: "/"        },
-  { label: "Documentos",    icon: FileText,         href: "/docs"    },
-  { label: "Reportes",      icon: BarChart2,        href: "/reportes"},
-  { label: "Asistente",     icon: MessageSquare,    href: "/chat"    },
-  { label: "Configuración", icon: Settings,         href: "/config"  },
+  { label: "Dashboard",  icon: LayoutDashboard, href: "/"         },
+  { label: "Documentos", icon: FileText,         href: "/docs"    },
+  { label: "Reportes",   icon: BarChart2,        href: "/reportes"},
+  { label: "Asistente",  icon: MessageSquare,    href: "/chat"    },
 ];
 
 const gestionSubItems = [
@@ -112,6 +111,14 @@ export default function Sidebar() {
             </div>
           )}
         </div>
+
+        {/* Configuración — always at bottom of nav */}
+        <Link href="/config">
+          <div className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${pathname === "/config" ? "bg-white/15 text-white" : "text-white/55 hover:bg-white/8 hover:text-white/80"}`}>
+            <Settings size={18} className={pathname === "/config" ? "text-white" : "text-white/55"} />
+            Configuración
+          </div>
+        </Link>
       </nav>
 
       {/* Footer */}

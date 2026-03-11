@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { extractOutermostJSON } from "@/lib/extractJSON";
 
 const SYSTEM_PROMPT = `Sos un analista financiero experto en empresas agropecuarias argentinas. Te dan múltiples balances de la misma empresa de distintos ejercicios. Tu tarea es analizar la evolución completa y devolver un JSON con:
 
@@ -112,11 +113,12 @@ export async function POST(request: NextRequest) {
     });
 
     const text = message.content[0].type === "text" ? message.content[0].text : "";
-    const stripped = text.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "");
-    const match = stripped.match(/\{[\s\S]*\}/);
-    if (!match) return NextResponse.json({ error: "No se pudo extraer JSON" }, { status: 500 });
-
-    const data = JSON.parse(match[0]);
+    const jsonStr = extractOutermostJSON(text);
+    if (!jsonStr) {
+      console.error("Claude response:", text);
+      return NextResponse.json({ error: "Claude no devolvió un JSON válido" }, { status: 500 });
+    }
+    const data = JSON.parse(jsonStr);
     return NextResponse.json({ data });
   } catch (err) {
     console.error("Error en /api/reportes/evolucion-historica:", err);

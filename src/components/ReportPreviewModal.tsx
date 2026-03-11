@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { X, Download, Loader2, ChevronDown, ChevronRight, FileSpreadsheet, FileText as FilePdf } from "lucide-react";
+import { X, Download, Loader2, ChevronDown, ChevronRight, FileSpreadsheet, FileText as FilePdf, BarChart2, TableProperties } from "lucide-react";
 import { generateReportPDF } from "@/lib/pdf/report-pdf";
 import { GeneratedReport } from "@/types/report";
+import { ReportCharts } from "@/components/charts/ReportCharts";
 
 // ─── Helpers numéricos ────────────────────────────────────────────────────────
 function toNum(v: unknown): number {
@@ -1314,6 +1315,129 @@ function EvolucionHistoricaTable({ d }: { d: any }) {
   );
 }
 
+// ─── Insufficient data detection ──────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function hasMinimumData(reportId: string, d: any): boolean {
+  if (!d) return false;
+  if (reportId === "break-even") {
+    const cultivos = d.cultivos ?? [];
+    const hasAny = cultivos.some((c: Record<string, unknown>) =>
+      c.be_rinde_tn_ha !== null || c.rinde_actual_tn_ha !== null || c.costo_total_usd_ha !== null
+    );
+    return hasAny || (d.completitud_pct ?? 0) >= 15;
+  }
+  if (reportId === "calificacion-bancaria") {
+    const sp = d.situacion_patrimonial_resumen ?? {};
+    return Object.values(sp).some(v => v !== null && v !== 0);
+  }
+  return true;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function InsufficientDataView({ reportId, d, onClose }: { reportId: string; d: any; onClose?: () => void }) {
+  const lacking = d.datos_faltantes ?? [];
+  const nota = d.datos_faltantes !== undefined || d.completitud_pct !== undefined
+    ? `Completitud: ${d.completitud_pct ?? 0}%`
+    : "";
+
+  const suggestions: Record<string, { needed: string[]; hint: string }> = {
+    "break-even": {
+      needed: ["Plan de siembra con hectáreas por cultivo", "Costos de producción (semilla, agroquímicos, labores, cosecha)", "Precios de venta estimados por cultivo"],
+      hint: "El break-even necesita datos de costos e ingresos por cultivo para calcular el punto de equilibrio.",
+    },
+    "calificacion-bancaria": {
+      needed: ["Datos de campos propios y arrendados", "Plan de siembra detallado", "Stock de hacienda (si aplica)", "Inventario de maquinaria"],
+      hint: "Con solo el balance se completa la parte financiera. Para completar el formulario bancario sumá los datos operativos.",
+    },
+  };
+
+  const sug = suggestions[reportId] ?? { needed: [], hint: "Subí más documentación para completar este reporte." };
+  const computed = (() => {
+    if (reportId === "break-even") {
+      const cultivos = d.cultivos ?? [];
+      const withSome = cultivos.filter((c: Record<string, unknown>) =>
+        c.cultivo !== undefined && Object.values(c).some(v => v !== null && v !== undefined)
+      );
+      return withSome.map((c: Record<string, string>) => c.cultivo).filter(Boolean);
+    }
+    if (reportId === "calificacion-bancaria") {
+      const parts: string[] = [];
+      if (d.empresa) parts.push("Empresa: " + d.empresa);
+      const sp = d.situacion_patrimonial_resumen ?? {};
+      if (sp.total_activo) parts.push("Total Activo");
+      if (sp.patrimonio_neto) parts.push("Patrimonio Neto");
+      return parts;
+    }
+    return [];
+  })();
+
+  return (
+    <div style={{ maxWidth: 600, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Header */}
+      <div style={{ padding: "20px 24px", borderRadius: 16, backgroundColor: "#FFFBEB", border: "1px solid #F5D87A", display: "flex", gap: 16, alignItems: "flex-start" }}>
+        <span style={{ fontSize: 28 }}>⚠️</span>
+        <div>
+          <p style={{ fontWeight: 700, fontSize: 15, color: "#92680A", margin: "0 0 4px" }}>Datos insuficientes</p>
+          <p style={{ fontSize: 13, color: "#7B5E1A", margin: 0, lineHeight: 1.6 }}>{sug.hint}</p>
+          {nota && <p style={{ fontSize: 11, color: "#B8922A", margin: "6px 0 0", fontWeight: 600 }}>{nota}</p>}
+        </div>
+      </div>
+
+      {/* What WAS calculated */}
+      {computed.length > 0 && (
+        <div style={{ padding: "16px 20px", borderRadius: 14, backgroundColor: "#F5FAF3", border: "1px solid #C8E6C0" }}>
+          <p style={{ fontWeight: 700, fontSize: 12, color: "#3D7A1C", marginBottom: 10, letterSpacing: "0.05em", textTransform: "uppercase" }}>✓ Lo que se pudo calcular</p>
+          <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
+            {computed.map((item: string, i: number) => (
+              <li key={i} style={{ fontSize: 13, color: "#1A1A1A", display: "flex", gap: 10, alignItems: "center" }}>
+                <span style={{ color: "#3D7A1C", fontWeight: 700, flexShrink: 0 }}>◆</span>
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* What's missing */}
+      <div style={{ padding: "16px 20px", borderRadius: 14, backgroundColor: "#FAFAF8", border: "1px solid #E8E5DE" }}>
+        <p style={{ fontWeight: 700, fontSize: 12, color: "#1A1A1A", marginBottom: 10, letterSpacing: "0.05em", textTransform: "uppercase" }}>Documentación necesaria</p>
+        <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
+          {sug.needed.map((item, i) => (
+            <li key={i} style={{ fontSize: 13, color: "#1A1A1A", display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <span style={{ color: "#C0392B", fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✗</span>
+              {item}
+            </li>
+          ))}
+          {lacking.map((f: Record<string, string>, i: number) => (
+            <li key={`f${i}`} style={{ fontSize: 12, color: "#6B6560", display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <span style={{ color: "#9B9488", flexShrink: 0, marginTop: 1 }}>○</span>
+              <span><strong>{f.seccion}</strong>: {f.dato} — {f.documento_sugerido}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* CTA */}
+      <div style={{ textAlign: "center", paddingTop: 4 }}>
+        <p style={{ fontSize: 13, color: "#9B9488", marginBottom: 12 }}>
+          Subí los documentos faltantes desde el Dashboard para completar este análisis.
+        </p>
+        {onClose && (
+          <button
+            onClick={onClose}
+            style={{
+              padding: "10px 28px", borderRadius: 10, backgroundColor: "#3D7A1C", color: "#fff",
+              fontWeight: 700, fontSize: 13, border: "none", cursor: "pointer",
+            }}
+          >
+            Ir al Dashboard →
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Dispatcher ───────────────────────────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function ReportTable({ reportId, d }: { reportId: string; d: any }) {
@@ -1414,6 +1538,7 @@ type Props = { report: GeneratedReport; onClose: () => void };
 
 export default function ReportPreviewModal({ report, onClose }: Props) {
   const d = report.data;
+  const [view, setView] = useState<"tabla" | "graficos">("tabla");
 
   const genDate = new Date(report.generatedAt).toLocaleDateString("es-AR", {
     day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
@@ -1454,34 +1579,70 @@ export default function ReportPreviewModal({ report, onClose }: Props) {
           </div>
         </div>
 
-        {/* Info bar */}
+        {/* Info bar + Tab switcher */}
         <div
-          className="flex flex-wrap items-center gap-6 px-6 py-3 shrink-0 border-b text-xs"
+          className="flex flex-wrap items-center justify-between gap-4 px-6 py-3 shrink-0 border-b text-xs"
           style={{ backgroundColor: "#F9F8F4", borderColor: "#E8E5DE" }}
         >
-          {[
-            { label: "Empresa",   value: d.empresa   ?? "—" },
-            { label: "CUIT",      value: d.cuit      ?? "—" },
-            { label: "Ejercicio", value: d.ejercicio ?? "—" },
-          ].map(({ label, value }) => (
-            <div key={label}>
-              <span className="font-semibold uppercase tracking-wider" style={{ color: "#9B9488" }}>{label}: </span>
-              <span className="font-medium" style={{ color: "#1A1A1A" }}>{value}</span>
-            </div>
-          ))}
+          <div className="flex flex-wrap items-center gap-6">
+            {[
+              { label: "Empresa",   value: d.empresa   ?? "—" },
+              { label: "CUIT",      value: d.cuit      ?? "—" },
+              { label: "Ejercicio", value: d.ejercicio ?? "—" },
+            ].map(({ label, value }) => (
+              <div key={label}>
+                <span className="font-semibold uppercase tracking-wider" style={{ color: "#9B9488" }}>{label}: </span>
+                <span className="font-medium" style={{ color: "#1A1A1A" }}>{value}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Tab switcher */}
+          <div className="flex items-center gap-1 rounded-lg p-1" style={{ backgroundColor: "#EDEAE4" }}>
+            {(["tabla", "graficos"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer"
+                style={view === v
+                  ? { backgroundColor: "#1A3311", color: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }
+                  : { color: "#6B6560" }
+                }
+              >
+                {v === "tabla"
+                  ? <><TableProperties size={12} />{" "}Tabla</>
+                  : <><BarChart2 size={12} />{" "}Gráficos</>
+                }
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Table */}
+        {/* Content */}
         <div className="flex-1 overflow-auto px-6 py-5" style={{ backgroundColor: "#F9F8F4" }}>
-          <div
-            className="rounded-xl overflow-hidden border"
-            style={{ borderColor: "#E8E5DE", maxWidth: 900, margin: "0 auto" }}
-          >
-            <ReportTable reportId={report.reportId} d={d} />
-          </div>
-          <p className="text-center mt-4 text-xs" style={{ color: "#B0A99F" }}>
-            Generado por AgroForma · {genDate}
-          </p>
+          {view === "tabla" ? (
+            <>
+              {!hasMinimumData(report.reportId, d) ? (
+                <InsufficientDataView reportId={report.reportId} d={d} onClose={onClose} />
+              ) : (
+                <>
+                  <div className="rounded-xl overflow-hidden border" style={{ borderColor: "#E8E5DE", maxWidth: 900, margin: "0 auto" }}>
+                    <ReportTable reportId={report.reportId} d={d} />
+                  </div>
+                  <p className="text-center mt-4 text-xs" style={{ color: "#B0A99F" }}>Generado por AgroForma · {genDate}</p>
+                </>
+              )}
+            </>
+          ) : (
+            <div style={{ maxWidth: 900, margin: "0 auto" }}>
+              {!hasMinimumData(report.reportId, d) ? (
+                <InsufficientDataView reportId={report.reportId} d={d} onClose={onClose} />
+              ) : (
+                <ReportCharts reportId={report.reportId} d={d} />
+              )}
+              <p className="text-center mt-4 text-xs" style={{ color: "#B0A99F" }}>Generado por AgroForma · {genDate}</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

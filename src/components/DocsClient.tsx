@@ -26,10 +26,13 @@ function formatSize(bytes: number): string {
 }
 
 export default function DocsClient() {
-  const { fileStore, setFileStore, documents, setDocuments, setAnalysisResult } = useAppContext();
+  const { fileStore, setFileStore, documents, setDocuments, setAnalysisResult, analysisResult } = useAppContext();
   const [modalOpen,  setModalOpen]  = useState(false);
   const [analyzing,  setAnalyzing]  = useState(false);
   const [error,      setError]      = useState<string | null>(null);
+  const [search,     setSearch]     = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("Todos");
+  const [catFilter,  setCatFilter]  = useState<string>("Todos");
 
   const runAnalysis = async (files: File[]) => {
     setAnalyzing(true);
@@ -171,6 +174,63 @@ export default function DocsClient() {
                   </div>
                 </div>
 
+                {/* Filter bar */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {/* Search */}
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type="text"
+                      placeholder="Buscar por nombre de archivo…"
+                      value={search}
+                      onChange={e => setSearch(e.target.value)}
+                      style={{
+                        width: "100%", padding: "9px 14px 9px 38px", borderRadius: 10,
+                        border: "1px solid #E8E5DE", backgroundColor: "#fff", fontSize: 13,
+                        outline: "none", boxSizing: "border-box",
+                      }}
+                    />
+                    <span style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: "#9B9488", pointerEvents: "none" }}>
+                      🔍
+                    </span>
+                  </div>
+
+                  {/* Type chips */}
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#9B9488", alignSelf: "center" }}>Formato:</span>
+                    {["Todos", "PDF", "Excel", "CSV"].map(t => (
+                      <button
+                        key={t}
+                        onClick={() => setTypeFilter(t)}
+                        style={{
+                          padding: "4px 12px", borderRadius: 99, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                          border: typeFilter === t ? "none" : "1px solid #E8E5DE",
+                          backgroundColor: typeFilter === t ? "#1A3311" : "#fff",
+                          color: typeFilter === t ? "#fff" : "#6B6560",
+                          transition: "all 0.15s",
+                        }}
+                      >{t}</button>
+                    ))}
+                  </div>
+
+                  {/* Category chips */}
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#9B9488", alignSelf: "center" }}>Categoría:</span>
+                    {["Todos", "Balance", "Plan de Siembra", "Liquidación", "Otro"].map(c => (
+                      <button
+                        key={c}
+                        onClick={() => setCatFilter(c)}
+                        style={{
+                          padding: "4px 12px", borderRadius: 99, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                          border: catFilter === c ? "none" : "1px solid #E8E5DE",
+                          backgroundColor: catFilter === c ? "#3D7A1C" : "#fff",
+                          color: catFilter === c ? "#fff" : "#6B6560",
+                          transition: "all 0.15s",
+                        }}
+                      >{c}</button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Documents table */}
                 <div
                   className="bg-white rounded-xl border overflow-hidden"
@@ -191,47 +251,80 @@ export default function DocsClient() {
                       </tr>
                     </thead>
                     <tbody>
-                      {[...documents].reverse().map((doc, i) => {
-                        const colors = typeColor[doc.type];
-                        return (
-                          <tr
-                            key={doc.id}
-                            style={{ borderTop: i > 0 ? "1px solid #F0EDE6" : undefined }}
-                          >
-                            <td className="px-5 py-3">
-                              <span className="font-medium" style={{ color: "#1A1A1A" }}>
-                                {doc.name}
-                              </span>
-                            </td>
-                            <td className="px-5 py-3">
-                              <span
-                                className="text-[11px] font-semibold px-2 py-0.5 rounded"
-                                style={{ backgroundColor: colors.bg, color: colors.text }}
-                              >
-                                {doc.type}
-                              </span>
-                            </td>
-                            <td className="px-5 py-3">
-                              <span className="text-xs" style={{ color: "#6B6560" }}>
-                                {formatSize(doc.size)}
-                              </span>
-                            </td>
-                            <td className="px-5 py-3">
-                              <span className="text-xs" style={{ color: "#6B6560" }}>
-                                {formatDate(doc.date)}
-                              </span>
-                            </td>
-                            <td className="px-5 py-3">
-                              <span
-                                className="text-[11px] font-semibold px-2 py-0.5 rounded"
-                                style={{ backgroundColor: "#E6F4EA", color: "#1E7E34" }}
-                              >
-                                Cargado
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {(() => {
+                        const filteredDocs = [...documents].reverse().filter(doc => {
+                          if (search && !doc.name.toLowerCase().includes(search.toLowerCase())) return false;
+                          if (typeFilter !== "Todos") {
+                            if (typeFilter === "Excel" && doc.type !== "XLSX" && doc.type !== "XLS") return false;
+                            if (typeFilter === "PDF" && doc.type !== "PDF") return false;
+                            if (typeFilter === "CSV" && doc.type !== "CSV") return false;
+                          }
+                          if (catFilter !== "Todos") {
+                            const detected = analysisResult?.documentos_detectados?.find(
+                              d => d.nombre_archivo === doc.name
+                            );
+                            if (catFilter === "Balance" && (!detected || !detected.tipo.includes("balance"))) return false;
+                            if (catFilter === "Plan de Siembra" && (!detected || !detected.tipo.includes("plan_siembra"))) return false;
+                            if (catFilter === "Liquidación" && (!detected || (!detected.tipo.includes("liquidacion_granos") && !detected.tipo.includes("liquidacion_hacienda")))) return false;
+                            if (catFilter === "Otro" && detected && detected.tipo !== "otro") return false;
+                          }
+                          return true;
+                        });
+                        return filteredDocs.map((doc, i) => {
+                          const colors = typeColor[doc.type];
+                          const detected = analysisResult?.documentos_detectados?.find(
+                            d => d.nombre_archivo === doc.name
+                          );
+                          return (
+                            <tr
+                              key={doc.id}
+                              style={{ borderTop: i > 0 ? "1px solid #F0EDE6" : undefined }}
+                            >
+                              <td className="px-5 py-3">
+                                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                  <span className="font-medium" style={{ color: "#1A1A1A" }}>
+                                    {doc.name}
+                                  </span>
+                                  {detected && (
+                                    <span
+                                      className="text-[10px] font-semibold px-1.5 py-0.5 rounded w-fit"
+                                      style={{ backgroundColor: "#EBF3E8", color: "#3D7A1C" }}
+                                    >
+                                      {detected.tipo.replace(/_/g, " ")}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-5 py-3">
+                                <span
+                                  className="text-[11px] font-semibold px-2 py-0.5 rounded"
+                                  style={{ backgroundColor: colors.bg, color: colors.text }}
+                                >
+                                  {doc.type}
+                                </span>
+                              </td>
+                              <td className="px-5 py-3">
+                                <span className="text-xs" style={{ color: "#6B6560" }}>
+                                  {formatSize(doc.size)}
+                                </span>
+                              </td>
+                              <td className="px-5 py-3">
+                                <span className="text-xs" style={{ color: "#6B6560" }}>
+                                  {formatDate(doc.date)}
+                                </span>
+                              </td>
+                              <td className="px-5 py-3">
+                                <span
+                                  className="text-[11px] font-semibold px-2 py-0.5 rounded"
+                                  style={{ backgroundColor: "#E6F4EA", color: "#1E7E34" }}
+                                >
+                                  Cargado
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()}
                     </tbody>
                   </table>
                 </div>

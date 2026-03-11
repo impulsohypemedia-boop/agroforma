@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import ExcelJS from "exceljs";
+import { extractOutermostJSON } from "@/lib/extractJSON";
 
 const SYSTEM_PROMPT = `Sos un analista contable especializado en empresas agropecuarias argentinas.
 Te dan un único documento contable. Extraé TODOS los datos financieros posibles y devolvelos como JSON estructurado.
@@ -125,15 +126,12 @@ export async function POST(request: NextRequest) {
     });
 
     const responseText = message.content[0].type === "text" ? message.content[0].text : "";
-    const stripped = responseText.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "");
-    const jsonMatch = stripped.match(/\{[\s\S]*\}/);
-
-    if (!jsonMatch) {
+    const jsonStr = extractOutermostJSON(responseText);
+    if (!jsonStr) {
       console.error("Claude extraer-uno response:", responseText);
       return NextResponse.json({ error: "No se pudo extraer datos del documento" }, { status: 500 });
     }
-
-    const data = JSON.parse(jsonMatch[0]);
+    const data = JSON.parse(jsonStr);
     // Ensure nombre_archivo matches the actual file name
     data.nombre_archivo = file.name;
     return NextResponse.json({ data });

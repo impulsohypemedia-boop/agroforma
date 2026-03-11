@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
   Scale, TrendingUp, BarChart2, GitBranch, Target,
   Calendar, Map, Building2, Loader2, LucideIcon, FileText, Lock,
-  ChevronDown, ChevronRight, CheckCircle2, XCircle, X, Upload,
+  ChevronDown, ChevronRight, CheckCircle2, XCircle, X, Upload, History,
 } from "lucide-react";
 import { AnalysisResult, ReportePosible } from "@/types/analysis";
 import { GeneratedReport } from "@/types/report";
@@ -19,12 +19,13 @@ const REPORT_ICONS: Record<string, LucideIcon> = {
   proyeccion:             Calendar,
   ranking_campos:         Map,
   calificacion_bancaria:  Building2,
+  evolucion_historica:    History,
 };
 
 // ─── Implemented report IDs ───────────────────────────────────────────────────
 const IMPLEMENTED = new Set([
   "situacion_patrimonial", "margen_bruto", "ratios",
-  "bridge", "break_even", "calificacion_bancaria",
+  "bridge", "break_even", "calificacion_bancaria", "evolucion_historica",
 ]);
 
 // ─── Report descriptions (what it IS, not what's needed) ─────────────────────
@@ -37,6 +38,18 @@ const REPORT_DESCRIPTIONS: Record<string, string> = {
   proyeccion:             "Estimación de resultados futuros por cultivo con análisis de escenarios",
   ranking_campos:         "Productividad por campo ordenada por rendimiento para optimizar decisiones",
   calificacion_bancaria:  "Formulario unificado de calificación para presentación ante entidades bancarias",
+  evolucion_historica:    "Análisis de evolución de resultados, patrimonio y ratios a lo largo de múltiples ejercicios",
+};
+
+// ─── Hints for available reports ──────────────────────────────────────────────
+const REPORT_HINTS: Record<string, string> = {
+  situacion_patrimonial:  "Subí más balances para ver evolución histórica",
+  margen_bruto:           "Sumá plan de siembra para ver margen por campo",
+  ratios:                 "Con más ejercicios se calculan tendencias",
+  bridge:                 "Disponible entre cualquier par de ejercicios",
+  break_even:             "Necesita plan de siembra con costos por cultivo",
+  calificacion_bancaria:  "Sumá datos de campos y hacienda para completar",
+  evolucion_historica:    "Disponible con 2 o más balances de la misma empresa",
 };
 
 // ─── Required docs per unavailable report ────────────────────────────────────
@@ -305,6 +318,12 @@ function AvailableReportCard({
       >
         {btnContent}
       </button>
+      {REPORT_HINTS[reporte.id] && (
+        <p style={{ fontSize: 10, color: "#B0A99F", lineHeight: 1.4, marginTop: 2, display: "flex", gap: 4, alignItems: "flex-start" }}>
+          <span style={{ flexShrink: 0, marginTop: 0.5 }}>💡</span>
+          {REPORT_HINTS[reporte.id]}
+        </p>
+      )}
     </div>
   );
 }
@@ -345,6 +364,21 @@ function UnavailableReportCard({
             {REPORT_DESCRIPTIONS[reporte.id] ?? reporte.descripcion}
           </p>
         </div>
+
+        {/* Quick checklist */}
+        {(REQUIRED_DOCS[reporte.id] ?? []).length > 0 && (
+          <ul style={{ margin: "0 0 8px", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 }}>
+            {(REQUIRED_DOCS[reporte.id] ?? []).map((doc, i) => {
+              const have = doc.tipos.some(t => detectedTipos.includes(t));
+              return (
+                <li key={i} style={{ fontSize: 10, display: "flex", gap: 6, alignItems: "flex-start", color: have ? "#3D7A1C" : "#9B9488" }}>
+                  <span style={{ flexShrink: 0, marginTop: 1 }}>{have ? "✓" : "✗"}</span>
+                  <span style={{ lineHeight: 1.3 }}>{doc.label.split(" con ")[0]}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
 
         <button
           onClick={() => setModalOpen(true)}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import ExcelJS from "exceljs";
 import { ExtractedDocData } from "@/types/analysis";
+import { extractOutermostJSON } from "@/lib/extractJSON";
 
 const SYSTEM_PROMPT = `Sos un analista especializado en documentación de empresas agropecuarias argentinas. Te van a dar uno o más documentos. Analizalos y devolvé un JSON con:
 
@@ -177,19 +178,18 @@ export async function POST(request: NextRequest) {
     });
 
     const text = message.content[0].type === "text" ? message.content[0].text : "";
-    const stripped = text.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "");
-    const match = stripped.match(/\{[\s\S]*\}/);
+    const jsonStr = extractOutermostJSON(text);
 
-    if (!match) {
+    if (!jsonStr) {
       console.error("Claude response (no JSON found):", text);
       return NextResponse.json({ error: "No se pudo analizar los documentos" }, { status: 500 });
     }
 
     let parsed;
     try {
-      parsed = JSON.parse(match[0]);
+      parsed = JSON.parse(jsonStr);
     } catch (parseErr) {
-      console.error("JSON.parse failed:", parseErr, "\nRaw match:", match[0].slice(0, 500));
+      console.error("JSON.parse failed:", parseErr, "\nRaw jsonStr:", jsonStr.slice(0, 500));
       return NextResponse.json({ error: "Respuesta de Claude no es JSON válido" }, { status: 500 });
     }
 

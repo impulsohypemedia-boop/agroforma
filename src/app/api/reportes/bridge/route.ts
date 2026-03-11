@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { extractOutermostJSON } from "@/lib/extractJSON";
 
 const SYSTEM_PROMPT = `Sos un analista financiero especializado en empresas agropecuarias argentinas. Te van a dar documentos contables con dos ejercicios comparativos (balance, estado de resultados). Tu tarea es construir un Bridge de Resultados que explique la variación del resultado entre los dos ejercicios.
 
@@ -71,15 +72,12 @@ export async function POST(request: NextRequest) {
     });
 
     const responseText = message.content[0].type === "text" ? message.content[0].text : "";
-    const stripped = responseText.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "");
-    const jsonMatch = stripped.match(/\{[\s\S]*\}/);
-
-    if (!jsonMatch) {
+    const jsonStr = extractOutermostJSON(responseText);
+    if (!jsonStr) {
       console.error("Claude response:", responseText);
       return NextResponse.json({ error: "Claude no devolvió un JSON válido" }, { status: 500 });
     }
-
-    const data = JSON.parse(jsonMatch[0]);
+    const data = JSON.parse(jsonStr);
     return NextResponse.json({ data });
   } catch (err) {
     console.error("Error en /api/reportes/bridge:", err);

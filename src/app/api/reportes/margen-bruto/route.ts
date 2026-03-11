@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { extractOutermostJSON } from "@/lib/extractJSON";
 
 const SYSTEM_PROMPT = `Sos un analista agropecuario especializado en empresas agrícolas argentinas. Te van a dar documentos contables (balances, estados de resultados, anexos de ventas y costos). Tu tarea es extraer la información de ventas por cultivo y costos, y generar un JSON con el Margen Bruto por Cultivo.
 
@@ -86,15 +87,12 @@ export async function POST(request: NextRequest) {
     });
 
     const responseText = message.content[0].type === "text" ? message.content[0].text : "";
-    const stripped = responseText.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "");
-    const jsonMatch = stripped.match(/\{[\s\S]*\}/);
-
-    if (!jsonMatch) {
+    const jsonStr = extractOutermostJSON(responseText);
+    if (!jsonStr) {
       console.error("Claude response:", responseText);
       return NextResponse.json({ error: "Claude no devolvió un JSON válido" }, { status: 500 });
     }
-
-    const data = JSON.parse(jsonMatch[0]);
+    const data = JSON.parse(jsonStr);
     return NextResponse.json({ data });
   } catch (err) {
     console.error("Error en /api/reportes/margen-bruto:", err);
