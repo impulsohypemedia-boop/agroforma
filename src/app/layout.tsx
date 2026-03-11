@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Fraunces, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+import { AppProvider } from "@/context/AppContext";
 
 const fraunces = Fraunces({
   variable: "--font-fraunces",
@@ -27,7 +28,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={`${fraunces.variable} ${plusJakarta.variable}`}>
-        {children}
+        <AppProvider>{children}</AppProvider>
       </body>
     </html>
   );

@@ -1,47 +1,50 @@
 "use client";
 
-import { useState } from "react";
-import { Upload, Loader2 } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { useAppContext } from "@/context/AppContext";
+import { Upload, Loader2, Bell } from "lucide-react";
+import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import KpiCard from "@/components/dashboard/KpiCard";
-import DocumentsTable from "@/components/dashboard/DocumentsTable";
-import GeneratedReportsSection from "@/components/dashboard/GeneratedReportsSection";
 import DocumentAnalysis from "@/components/dashboard/DocumentAnalysis";
 import UploadModal from "@/components/UploadModal";
 import ReportPreviewModal from "@/components/ReportPreviewModal";
 import { UploadedDoc } from "@/types/document";
 import { GeneratedReport } from "@/types/report";
-import { AnalysisResult } from "@/types/analysis";
 
-// ─── Mapa de rutas para reportes implementados ────────────────────────────────
-// Clave = analysisId (underscore), valor = datos de ruta
+// ─── Route map ────────────────────────────────────────────────────────────────
 const ROUTE_MAP: Record<string, { reportId: string; apiPath: string; downloadPath: string }> = {
   situacion_patrimonial: {
-    reportId:     "situacion-patrimonial",
-    apiPath:      "/api/reportes/situacion-patrimonial",
+    reportId: "situacion-patrimonial",
+    apiPath: "/api/reportes/situacion-patrimonial",
     downloadPath: "/api/reportes/situacion-patrimonial/download",
   },
   margen_bruto: {
-    reportId:     "margen-bruto",
-    apiPath:      "/api/reportes/margen-bruto",
+    reportId: "margen-bruto",
+    apiPath: "/api/reportes/margen-bruto",
     downloadPath: "/api/reportes/margen-bruto/download",
   },
   ratios: {
-    reportId:     "ratios",
-    apiPath:      "/api/reportes/ratios",
+    reportId: "ratios",
+    apiPath: "/api/reportes/ratios",
     downloadPath: "/api/reportes/ratios/download",
   },
   bridge: {
-    reportId:     "bridge",
-    apiPath:      "/api/reportes/bridge",
+    reportId: "bridge",
+    apiPath: "/api/reportes/bridge",
     downloadPath: "/api/reportes/bridge/download",
   },
+  calificacion_bancaria: {
+    reportId: "calificacion-bancaria",
+    apiPath: "/api/reportes/calificacion-bancaria",
+    downloadPath: "/api/reportes/calificacion-bancaria/download",
+  },
+  break_even: {
+    reportId: "break-even",
+    apiPath: "/api/reportes/break-even",
+    downloadPath: "/api/reportes/break-even/download",
+  },
 };
-
-function formatDate(iso: string) {
-  const [y, m, d] = iso.split("-");
-  return `${d}/${m}/${y}`;
-}
 
 async function triggerExcelDownload(report: GeneratedReport) {
   const res = await fetch(report.downloadPath, {
@@ -61,18 +64,127 @@ async function triggerExcelDownload(report: GeneratedReport) {
   URL.revokeObjectURL(url);
 }
 
-export default function DashboardClient() {
-  const [documents,        setDocuments]        = useState<UploadedDoc[]>([]);
-  const [fileStore,        setFileStore]         = useState<File[]>([]);
-  const [modalOpen,        setModalOpen]         = useState(false);
-  const [analyzing,        setAnalyzing]         = useState(false);
-  const [analysisResult,   setAnalysisResult]    = useState<AnalysisResult | null>(null);
-  const [generating,       setGenerating]        = useState<string | null>(null); // analysisId
-  const [genError,         setGenError]          = useState<string | null>(null);
-  const [generatedReports, setGeneratedReports]  = useState<GeneratedReport[]>([]);
-  const [previewReport,    setPreviewReport]     = useState<GeneratedReport | null>(null);
+// ─── Enrich analysis with gestión data ────────────────────────────────────────
+function enrichAnalysis(
+  analysis: import("@/types/analysis").AnalysisResult | null,
+  hasCampos: boolean,
+  hasPlanSiembra: boolean,
+): import("@/types/analysis").AnalysisResult | null {
+  if (!analysis) return null;
+  if (!hasCampos && !hasPlanSiembra) return analysis;
+  return {
+    ...analysis,
+    reportes_posibles: analysis.reportes_posibles.map((r) => {
+      if (r.id === "proyeccion_campana" && hasCampos && hasPlanSiembra) {
+        return { ...r, disponible: true, nota: "Datos del plan de siembra disponibles." };
+      }
+      if (r.id === "ranking_campos" && hasCampos) {
+        return { ...r, disponible: true, nota: "Campos cargados en Gestión." };
+      }
+      return r;
+    }),
+  };
+}
 
-  // ── Análisis de documentos ────────────────────────────────────────────────
+export default function DashboardClient() {
+  const {
+    fileStore, setFileStore,
+    documents, setDocuments,
+    generatedReports, setGeneratedReports,
+    analysisResult, setAnalysisResult,
+    campos, planSiembra, campanaActual,
+  } = useAppContext();
+
+  const [modalOpen,     setModalOpen]     = useState(false);
+  const [analyzing,     setAnalyzing]     = useState(false);
+  const [generating,    setGenerating]    = useState<string | null>(null);
+  const [bulkProgress,  setBulkProgress]  = useState<{ current: number; total: number } | null>(null);
+  const [genError,      setGenError]      = useState<string | null>(null);
+  const [previewReport, setPreviewReport] = useState<GeneratedReport | null>(null);
+
+  // ── Notification bell ─────────────────────────────────────────────────────
+  const [bellOpen,   setBellOpen]   = useState(false);
+  const [seenCount,  setSeenCount]  = useState(0);
+  const bellRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("agroforma_notif_seen");
+    if (stored) setSeenCount(parseInt(stored, 10) || 0);
+  }, []);
+
+  // close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
+        setBellOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const unseenCount = Math.max(0, generatedReports.length - seenCount);
+
+  const openBell = () => {
+    setBellOpen((v) => !v);
+    setSeenCount(generatedReports.length);
+    localStorage.setItem("agroforma_notif_seen", String(generatedReports.length));
+  };
+
+  // ── Core generation ───────────────────────────────────────────────────────
+  const generateOne = async (analysisId: string) => {
+    const route = ROUTE_MAP[analysisId];
+    if (!route) return;
+    const reporte = analysisResult?.reportes_posibles.find((r) => r.id === analysisId);
+    const title = reporte?.nombre ?? analysisId;
+    const fd = new FormData();
+    fileStore.forEach((f) => fd.append("files", f));
+    const res = await fetch(route.apiPath, { method: "POST", body: fd });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error ?? `Error ${res.status}`);
+    setGeneratedReports((prev) => [
+      ...prev,
+      {
+        id:           crypto.randomUUID(),
+        reportId:     route.reportId,
+        title,
+        generatedAt:  new Date().toISOString(),
+        downloadPath: route.downloadPath,
+        data:         body.data,
+      },
+    ]);
+  };
+
+  const handleGenerate = async (analysisId: string) => {
+    if (generating || bulkProgress) return;
+    if (fileStore.length === 0) {
+      setGenError("Subí los documentos de nuevo para generar nuevos reportes.");
+      return;
+    }
+    setGenerating(analysisId);
+    setGenError(null);
+    try { await generateOne(analysisId); }
+    catch (err) { setGenError(err instanceof Error ? err.message : "Error al generar"); }
+    finally { setGenerating(null); }
+  };
+
+  const handleGenerateMultiple = async (analysisIds: string[]) => {
+    const valid = analysisIds.filter((id) => ROUTE_MAP[id]);
+    if (!valid.length || generating || bulkProgress) return;
+    if (fileStore.length === 0) {
+      setGenError("Subí los documentos de nuevo para generar nuevos reportes.");
+      return;
+    }
+    setGenError(null);
+    for (let i = 0; i < valid.length; i++) {
+      setBulkProgress({ current: i + 1, total: valid.length });
+      try { await generateOne(valid[i]); }
+      catch (err) { setGenError(err instanceof Error ? err.message : "Error al generar"); }
+    }
+    setBulkProgress(null);
+  };
+
+  // ── Upload confirm ────────────────────────────────────────────────────────
   const runAnalysis = async (files: File[]) => {
     setAnalyzing(true);
     setAnalysisResult(null);
@@ -81,11 +193,8 @@ export default function DashboardClient() {
       files.forEach((f) => fd.append("files", f));
       const res = await fetch("/api/analizar-documentos", { method: "POST", body: fd });
       const body = await res.json();
-      if (res.ok && body.data) {
-        setAnalysisResult(body.data);
-      } else {
-        setGenError(body.error ?? "No se pudo analizar los documentos");
-      }
+      if (res.ok && body.data) setAnalysisResult(body.data);
+      else setGenError(body.error ?? "No se pudo analizar los documentos");
     } catch {
       setGenError("Error al conectar con el servidor de análisis");
     } finally {
@@ -93,7 +202,6 @@ export default function DashboardClient() {
     }
   };
 
-  // ── Upload confirm → guarda archivos y lanza análisis ────────────────────
   const handleConfirm = (newDocs: UploadedDoc[], newFiles: File[]) => {
     const allFiles = [...fileStore, ...newFiles];
     setDocuments((prev) => [...prev, ...newDocs]);
@@ -102,60 +210,26 @@ export default function DashboardClient() {
     runAnalysis(allFiles);
   };
 
-  // ── Generar reporte (por analysisId) ─────────────────────────────────────
-  const handleGenerate = async (analysisId: string) => {
-    const route = ROUTE_MAP[analysisId];
-    if (!route || generating) return;
+  // ── Enrich analysis with gestión data ────────────────────────────────────
+  const hasCampos = campos.length > 0;
+  const hasPlanSiembra = planSiembra.filter((l) => l.campana === campanaActual).length > 0;
+  const enrichedAnalysis = enrichAnalysis(analysisResult, hasCampos, hasPlanSiembra);
 
-    const reporte = analysisResult?.reportes_posibles.find((r) => r.id === analysisId);
-    const title = reporte?.nombre ?? analysisId;
+  // ── Latest report per analysisId (for "Ver reporte" button) ──────────────
+  const latestByAnalysisId: Record<string, GeneratedReport> = {};
+  for (const [analysisId, route] of Object.entries(ROUTE_MAP)) {
+    const matching = generatedReports.filter((r) => r.reportId === route.reportId);
+    if (matching.length > 0) latestByAnalysisId[analysisId] = matching[matching.length - 1];
+  }
 
-    setGenerating(analysisId);
-    setGenError(null);
-
-    try {
-      const fd = new FormData();
-      fileStore.forEach((f) => fd.append("files", f));
-
-      const res = await fetch(route.apiPath, { method: "POST", body: fd });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? `Error ${res.status}`);
-
-      setGeneratedReports((prev) => [
-        ...prev,
-        {
-          id:           crypto.randomUUID(),
-          reportId:     route.reportId,
-          title,
-          generatedAt:  new Date().toISOString(),
-          downloadPath: route.downloadPath,
-          data:         body.data,
-        },
-      ]);
-    } catch (err) {
-      setGenError(err instanceof Error ? err.message : "Error al generar el reporte");
-    } finally {
-      setGenerating(null);
-    }
-  };
-
-  const handleDownloadFromList = async (report: GeneratedReport) => {
-    try { await triggerExcelDownload(report); }
-    catch (err) { setGenError(err instanceof Error ? err.message : "Error al descargar"); }
-  };
-
-  // ── KPIs derivados ────────────────────────────────────────────────────────
-  const hasDocuments = documents.length > 0;
-  const lastReport = generatedReports.length > 0
-    ? formatDate(generatedReports[generatedReports.length - 1].generatedAt.split("T")[0])
-    : "--";
-  const reportesDisponibles = analysisResult?.reportes_posibles.filter((r) => r.disponible).length ?? 0;
+  // ── KPIs ──────────────────────────────────────────────────────────────────
+  const reportesDisponibles = enrichedAnalysis?.reportes_posibles.filter((r) => r.disponible).length ?? 0;
 
   const kpis = [
     {
       label: "Documentos cargados",
       value: String(documents.length),
-      sub: hasDocuments
+      sub: documents.length > 0
         ? `${documents.length} archivo${documents.length !== 1 ? "s" : ""} procesado${documents.length !== 1 ? "s" : ""}`
         : "Ningún archivo procesado",
     },
@@ -163,28 +237,17 @@ export default function DashboardClient() {
       label: "Reportes disponibles",
       value: analyzing ? "…" : String(reportesDisponibles),
       sub: analysisResult
-        ? `${reportesDisponibles} de ${analysisResult.reportes_posibles.length} posibles`
-        : analyzing
-        ? "Analizando documentos…"
-        : "Subí documentos para ver",
+        ? `${reportesDisponibles} de ${enrichedAnalysis!.reportes_posibles.length} posibles`
+        : analyzing ? "Analizando documentos…" : "Subí documentos para ver",
       accent: reportesDisponibles > 0,
     },
     {
-      label: "Último reporte",
-      value: lastReport,
+      label: "Reportes generados",
+      value: String(generatedReports.length),
       sub: generatedReports.length > 0
-        ? generatedReports[generatedReports.length - 1].title
+        ? `Último: ${generatedReports[generatedReports.length - 1].title}`
         : "Sin reportes generados",
-    },
-    {
-      label: "Empresa detectada",
-      value: analysisResult?.empresa ? analysisResult.empresa.split(" ")[0] : "—",
-      sub: analysisResult?.cuit
-        ? `CUIT: ${analysisResult.cuit}`
-        : analyzing
-        ? "Identificando…"
-        : "Sin documentos",
-      accent: !!analysisResult?.empresa,
+      accent: generatedReports.length > 0,
     },
   ];
 
@@ -196,20 +259,113 @@ export default function DashboardClient() {
         <div className="flex-1 overflow-y-auto">
           {/* Header */}
           <header
-            className="sticky top-0 z-10 flex items-center justify-between px-8 py-5 border-b bg-white/80 backdrop-blur-sm"
+            className="sticky top-0 z-10 flex items-center gap-4 px-8 py-5 border-b bg-white/80 backdrop-blur-sm"
             style={{ borderColor: "#E8E5DE" }}
           >
-            <div>
+            <div className="flex-1">
               <h1 className="text-xl font-semibold" style={{ color: "#1A1A1A" }}>Dashboard</h1>
               <p className="text-xs mt-0.5" style={{ color: "#9B9488" }}>Campaña 2025/26</p>
             </div>
+
+            {/* Empresa detectada */}
+            {analysisResult?.empresa && (
+              <div
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm"
+                style={{ borderColor: "#C8E6C0", backgroundColor: "#F5FAF3" }}
+              >
+                <span className="font-semibold truncate max-w-[180px]" style={{ color: "#1A1A1A" }}>
+                  {analysisResult.empresa}
+                </span>
+                {analysisResult.cuit && (
+                  <>
+                    <span style={{ color: "#C8E6C0" }}>·</span>
+                    <span className="text-xs font-mono" style={{ color: "#6B6560" }}>
+                      {analysisResult.cuit}
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Bell */}
+            <div ref={bellRef} className="relative">
+              <button
+                onClick={openBell}
+                className="relative flex items-center justify-center w-9 h-9 rounded-lg border transition-colors cursor-pointer hover:bg-gray-50"
+                style={{ borderColor: "#E8E5DE" }}
+              >
+                <Bell size={17} style={{ color: "#6B6560" }} />
+                {unseenCount > 0 && (
+                  <span
+                    className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center rounded-full text-[9px] font-bold text-white px-1"
+                    style={{ backgroundColor: "#3D7A1C" }}
+                  >
+                    {unseenCount}
+                  </span>
+                )}
+              </button>
+
+              {bellOpen && (
+                <div
+                  className="absolute right-0 mt-2 w-80 rounded-xl border shadow-lg overflow-hidden z-50"
+                  style={{ backgroundColor: "#FFFFFF", borderColor: "#E8E5DE", top: "100%" }}
+                >
+                  <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: "#F0EDE6" }}>
+                    <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#9B9488" }}>
+                      Reportes generados
+                    </span>
+                    <Link href="/reportes" onClick={() => setBellOpen(false)}>
+                      <span className="text-xs font-semibold cursor-pointer" style={{ color: "#3D7A1C" }}>
+                        Ver todos →
+                      </span>
+                    </Link>
+                  </div>
+
+                  {generatedReports.length === 0 ? (
+                    <div className="px-4 py-6 text-center">
+                      <p className="text-xs" style={{ color: "#9B9488" }}>No hay reportes generados todavía</p>
+                    </div>
+                  ) : (
+                    <ul className="max-h-72 overflow-y-auto divide-y" style={{ borderColor: "#F0EDE6" }}>
+                      {[...generatedReports].reverse().slice(0, 6).map((r) => {
+                        const date = new Date(r.generatedAt).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
+                        const time = new Date(r.generatedAt).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+                        return (
+                          <li key={r.id} className="px-4 py-3 flex items-center gap-3">
+                            <div
+                              className="w-1.5 h-1.5 rounded-full shrink-0"
+                              style={{ backgroundColor: "#3D7A1C" }}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate" style={{ color: "#1A1A1A" }}>{r.title}</p>
+                              <p className="text-xs mt-0.5" style={{ color: "#9B9488" }}>
+                                {r.data?.empresa ?? "—"} · {date} {time}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => { setPreviewReport(r); setBellOpen(false); }}
+                              className="text-xs font-semibold shrink-0 cursor-pointer"
+                              style={{ color: "#3D7A1C" }}
+                            >
+                              Ver
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Upload button */}
             <button
               onClick={() => setModalOpen(true)}
               className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 cursor-pointer"
               style={{ backgroundColor: "#3D7A1C" }}
             >
               <Upload size={15} />
-              {hasDocuments ? "Agregar documentos" : "Subir documentos"}
+              {documents.length > 0 ? "Agregar documentos" : "Subir documentos"}
             </button>
           </header>
 
@@ -231,7 +387,7 @@ export default function DashboardClient() {
               <h2 className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: "#9B9488" }}>
                 Resumen
               </h2>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 {kpis.map((kpi) => <KpiCard key={kpi.label} {...kpi} />)}
               </div>
             </section>
@@ -244,35 +400,34 @@ export default function DashboardClient() {
                   style={{ borderColor: "#E8E5DE", backgroundColor: "#FFFFFF" }}
                 >
                   <Loader2 size={28} className="animate-spin" style={{ color: "#3D7A1C" }} />
-                  <p className="font-medium text-sm" style={{ color: "#1A1A1A" }}>
-                    Analizando documentación…
-                  </p>
+                  <p className="font-medium text-sm" style={{ color: "#1A1A1A" }}>Analizando documentación…</p>
                   <p className="text-xs" style={{ color: "#9B9488" }}>
                     Claude está leyendo tus documentos y detectando qué reportes son posibles
                   </p>
                 </div>
               </section>
-            ) : analysisResult ? (
+            ) : enrichedAnalysis ? (
               <DocumentAnalysis
-                analysis={analysisResult}
+                analysis={enrichedAnalysis}
                 generating={generating}
+                bulkProgress={bulkProgress}
+                hasFiles={fileStore.length > 0}
+                latestByAnalysisId={latestByAnalysisId}
                 onGenerate={handleGenerate}
+                onGenerateMultiple={handleGenerateMultiple}
+                onViewReport={(r) => setPreviewReport(r)}
+                onUpload={() => setModalOpen(true)}
               />
-            ) : !hasDocuments ? (
+            ) : documents.length === 0 ? (
               <section>
                 <div
                   className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed py-14"
                   style={{ borderColor: "#D6D1C8", backgroundColor: "#FAFAF8" }}
                 >
-                  <div
-                    className="w-12 h-12 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: "#EBF3E8" }}
-                  >
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: "#EBF3E8" }}>
                     <Upload size={22} style={{ color: "#3D7A1C" }} />
                   </div>
-                  <p className="font-medium text-sm" style={{ color: "#1A1A1A" }}>
-                    Subí documentos para comenzar
-                  </p>
+                  <p className="font-medium text-sm" style={{ color: "#1A1A1A" }}>Subí documentos para comenzar</p>
                   <p className="text-xs text-center max-w-xs" style={{ color: "#9B9488" }}>
                     Claude analizará automáticamente qué reportes son posibles con tu documentación
                   </p>
@@ -286,18 +441,6 @@ export default function DashboardClient() {
                 </div>
               </section>
             ) : null}
-
-            {/* Reportes generados */}
-            <GeneratedReportsSection
-              reports={generatedReports}
-              onView={(r) => setPreviewReport(r)}
-              onDownload={handleDownloadFromList}
-            />
-
-            {/* Documentos recientes */}
-            <section>
-              <DocumentsTable documents={documents} />
-            </section>
           </main>
         </div>
       </div>
@@ -307,10 +450,7 @@ export default function DashboardClient() {
       )}
 
       {previewReport && (
-        <ReportPreviewModal
-          report={previewReport}
-          onClose={() => setPreviewReport(null)}
-        />
+        <ReportPreviewModal report={previewReport} onClose={() => setPreviewReport(null)} />
       )}
     </>
   );

@@ -1,0 +1,123 @@
+import { NextRequest, NextResponse } from "next/server";
+import Anthropic from "@anthropic-ai/sdk";
+import type { ContentBlockParam, ImageBlockParam, DocumentBlockParam, TextBlockParam } from "@anthropic-ai/sdk/resources/messages";
+
+const client = new Anthropic();
+
+const SYSTEM_PROMPT = `Sos un ingeniero agrónomo argentino. Te dan un plano o mapa de un campo. Extraé toda la información que puedas y devolvé SOLO este JSON:
+
+{
+  "campo": "nombre del establecimiento",
+  "propietario": "nombre si aparece",
+  "ubicacion": {
+    "localidad": "string",
+    "provincia": "string",
+    "coordenadas": "string si aparecen"
+  },
+  "superficie_total": number,
+  "superficie_siembra": number,
+  "lotes": [
+    {
+      "nombre": "LP_12",
+      "superficie_has": 181.76,
+      "cultivo": "string o null si no se indica",
+      "ambiente": "string o null (profundidad de suelo, calidad, etc)"
+    }
+  ],
+  "ambientes": {
+    "descripcion": "texto describiendo los ambientes del campo",
+    "detalle": [
+      {"tipo": "Profundidad >100cm", "superficie_has": number, "porcentaje": number},
+      {"tipo": "Profundidad 76-100cm", "superficie_has": number, "porcentaje": number},
+      {"tipo": "Profundidad 51-75cm", "superficie_has": number, "porcentaje": number}
+    ]
+  },
+  "cultivos_detectados": [
+    {"cultivo": "Maíz", "hectareas": 240},
+    {"cultivo": "Soja", "hectareas": 354}
+  ],
+  "infraestructura": ["corrales", "manga", "casa", "monte"],
+  "fuente": "nombre del archivo",
+  "campaña": "2014/15 o la que se detecte"
+}
+
+Extraé todo lo que encuentres. Si algo no está claro, ponelo como null.`;
+
+export async function POST(request: NextRequest) {
+  try {
+    const formData = await request.formData();
+    const file = formData.get("file") as File | null;
+    if (!file) return NextResponse.json({ error: "No se recibió archivo" }, { status: 400 });
+
+    const bytes = await file.arrayBuffer();
+    const base64 = Buffer.from(bytes).toString("base64");
+
+    const isImage = file.type.startsWith("image/");
+    const isPdf   = file.type === "application/pdf";
+
+    if (!isImage && !isPdf) {
+      // For Excel/CSV: send the file name and ask Claude to note it can't read binary
+      const response = await client.messages.create({
+        model: "claude-opus-4-6",
+        max_tokens: 2048,
+        system: SYSTEM_PROMPT,
+        messages: [{
+          role: "user",
+          content: `El archivo "${file.name}" es un Excel/planilla. No se puede renderizar visualmente. Devolvé un JSON con los campos en null y fuente = "${file.name}".`,
+        }],
+      });
+      const text = (response.content[0] as { type: string; text: string }).text;
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      const data = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+      return NextResponse.json({ data });
+    }
+
+    const textBlock: TextBlockParam = {
+      type: "text",
+      text: `Analizá este archivo y extraé la información del campo. Nombre del archivo: "${file.name}". Devolvé SOLO el JSON.`,
+    };
+
+    let mediaBlock: ContentBlockParam;
+    if (isPdf) {
+      const docBlock: DocumentBlockParam = {
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: base64,
+        },
+      };
+      mediaBlock = docBlock;
+    } else {
+      const imgBlock: ImageBlockParam = {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: file.type as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+          data: base64,
+        },
+      };
+      mediaBlock = imgBlock;
+    }
+
+    const response = await client.messages.create({
+      model: "claude-opus-4-6",
+      max_tokens: 4096,
+      system: SYSTEM_PROMPT,
+      messages: [{
+        role: "user",
+        content: [mediaBlock, textBlock],
+      }],
+    });
+
+    const text = (response.content[0] as { type: string; text: string }).text;
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return NextResponse.json({ error: "No se pudo extraer JSON de la respuesta", raw: text }, { status: 500 });
+
+    const data = JSON.parse(jsonMatch[0]);
+    return NextResponse.json({ data });
+  } catch (err) {
+    console.error("Error en /api/gestion/analizar-plano:", err);
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Error interno" }, { status: 500 });
+  }
+}

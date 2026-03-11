@@ -1,12 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import {
   Scale, TrendingUp, BarChart2, GitBranch, Target,
   Calendar, Map, Building2, Loader2, LucideIcon, FileText, Lock,
+  ChevronDown, ChevronRight, CheckCircle2, XCircle, X, Upload,
 } from "lucide-react";
 import { AnalysisResult, ReportePosible } from "@/types/analysis";
+import { GeneratedReport } from "@/types/report";
 
-// ─── Mapa de íconos por ID de reporte ─────────────────────────────────────────
+// ─── Icon map ─────────────────────────────────────────────────────────────────
 const REPORT_ICONS: Record<string, LucideIcon> = {
   situacion_patrimonial:  Scale,
   margen_bruto:           TrendingUp,
@@ -18,126 +21,427 @@ const REPORT_ICONS: Record<string, LucideIcon> = {
   calificacion_bancaria:  Building2,
 };
 
-// IDs con ruta implementada
-const IMPLEMENTED = new Set(["situacion_patrimonial", "margen_bruto", "ratios", "bridge"]);
+// ─── Implemented report IDs ───────────────────────────────────────────────────
+const IMPLEMENTED = new Set([
+  "situacion_patrimonial", "margen_bruto", "ratios",
+  "bridge", "break_even", "calificacion_bancaria",
+]);
 
-// ─── Card individual ─────────────────────────────────────────────────────────
-function AnalysisReportCard({
+// ─── Report descriptions (what it IS, not what's needed) ─────────────────────
+const REPORT_DESCRIPTIONS: Record<string, string> = {
+  situacion_patrimonial:  "Balance de activos, pasivos y patrimonio neto con comparativo entre ejercicios",
+  margen_bruto:           "Análisis de rentabilidad por cultivo con ingresos, costos y margen neto",
+  ratios:                 "Indicadores clave de rentabilidad, liquidez, endeudamiento y solvencia",
+  bridge:                 "Descomposición detallada de la variación del resultado entre dos ejercicios",
+  break_even:             "Punto de equilibrio por cultivo con tabla de sensibilidad precio × rinde",
+  proyeccion:             "Estimación de resultados futuros por cultivo con análisis de escenarios",
+  ranking_campos:         "Productividad por campo ordenada por rendimiento para optimizar decisiones",
+  calificacion_bancaria:  "Formulario unificado de calificación para presentación ante entidades bancarias",
+};
+
+// ─── Required docs per unavailable report ────────────────────────────────────
+const REQUIRED_DOCS: Record<string, { label: string; tipos: string[] }[]> = {
+  proyeccion: [
+    { label: "Plan de siembra con hectáreas, cultivos y rindes estimados", tipos: ["plan_siembra"] },
+    { label: "Balance o estado de resultados", tipos: ["balance"] },
+  ],
+  ranking_campos: [
+    { label: "Planilla de producción detallada por campo o potrero", tipos: ["planilla_stock", "plan_siembra"] },
+    { label: "Balance o estado de resultados", tipos: ["balance"] },
+  ],
+};
+
+// ─── Required docs modal ──────────────────────────────────────────────────────
+function RequiredDocsModal({
   reporte,
-  loading,
-  onGenerate,
+  detectedTipos,
+  onClose,
+  onUpload,
 }: {
   reporte: ReportePosible;
-  loading: boolean;
-  onGenerate?: () => void;
+  detectedTipos: string[];
+  onClose: () => void;
+  onUpload: () => void;
+}) {
+  const required = REQUIRED_DOCS[reporte.id] ?? [];
+  const description = REPORT_DESCRIPTIONS[reporte.id] ?? reporte.descripcion;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(0,0,0,0.45)" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        className="relative w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
+        style={{ backgroundColor: "#FFFFFF" }}
+      >
+        {/* Header */}
+        <div className="px-6 pt-6 pb-4 border-b" style={{ borderColor: "#F0EDE6" }}>
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
+          >
+            <X size={16} style={{ color: "#9B9488" }} />
+          </button>
+          <div className="flex items-center gap-3 mb-3">
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+              style={{ backgroundColor: "#F0EDE6" }}
+            >
+              <Lock size={16} style={{ color: "#B0A99F" }} />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-0.5" style={{ color: "#9B9488" }}>
+                Documentación necesaria
+              </p>
+              <h3 className="font-semibold text-base" style={{ color: "#1A1A1A" }}>
+                {reporte.nombre}
+              </h3>
+            </div>
+          </div>
+          <p className="text-sm leading-relaxed" style={{ color: "#6B6560" }}>
+            {description}
+          </p>
+        </div>
+
+        {/* Docs list */}
+        <div className="px-6 py-5">
+          <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#9B9488" }}>
+            Documentos requeridos
+          </p>
+          {required.length === 0 ? (
+            <p className="text-sm" style={{ color: "#9B9488" }}>
+              {reporte.motivo}
+            </p>
+          ) : (
+            <ul className="space-y-2.5">
+              {required.map((doc) => {
+                const have = doc.tipos.some((t) => detectedTipos.includes(t));
+                return (
+                  <li key={doc.label} className="flex items-start gap-3">
+                    {have
+                      ? <CheckCircle2 size={17} className="shrink-0 mt-0.5" style={{ color: "#3D7A1C" }} />
+                      : <XCircle      size={17} className="shrink-0 mt-0.5" style={{ color: "#C0392B" }} />
+                    }
+                    <span
+                      className="text-sm leading-snug"
+                      style={{ color: have ? "#3D7A1C" : "#1A1A1A" }}
+                    >
+                      {doc.label}
+                      {have && (
+                        <span
+                          className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                          style={{ backgroundColor: "#EBF3E8", color: "#3D7A1C" }}
+                        >
+                          Disponible
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 pb-6 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-lg text-sm font-semibold border cursor-pointer transition-colors hover:bg-gray-50"
+            style={{ borderColor: "#D6D1C8", color: "#6B6560" }}
+          >
+            Cerrar
+          </button>
+          <button
+            onClick={() => { onUpload(); onClose(); }}
+            className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white cursor-pointer transition-opacity hover:opacity-90 flex items-center justify-center gap-2"
+            style={{ backgroundColor: "#3D7A1C" }}
+          >
+            <Upload size={14} />
+            Subir documentación
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Available report card ────────────────────────────────────────────────────
+function AvailableReportCard({
+  reporte,
+  isGenerating,
+  isAnyBusy,
+  isSelected,
+  latestReport,
+  onToggle,
+  onGenerate,
+  onViewReport,
+}: {
+  reporte: ReportePosible;
+  isGenerating: boolean;
+  isAnyBusy: boolean;
+  isSelected: boolean;
+  latestReport: GeneratedReport | null;
+  onToggle: () => void;
+  onGenerate: () => void;
+  onViewReport: (r: GeneratedReport) => void;
 }) {
   const Icon = REPORT_ICONS[reporte.id] ?? FileText;
   const implemented = IMPLEMENTED.has(reporte.id);
-  const canClick = reporte.disponible && implemented && !loading && !!onGenerate;
+  const hasGenerated = latestReport !== null;
 
-  // Estados visuales:
-  // disponible + implementado  → verde, botón activo
-  // disponible + no implementado → verde outline, botón "Próximamente"
-  // no disponible               → gris, muestra motivo, botón deshabilitado
+  // Button state
+  let btnContent: React.ReactNode;
+  let btnStyle: React.CSSProperties;
+  let btnAction: (() => void) | undefined;
+  let btnDisabled = false;
 
-  const cardStyle: React.CSSProperties = reporte.disponible
-    ? { borderColor: "#C8E6C0", backgroundColor: "#FFFFFF" }
-    : { borderColor: "#E8E5DE", backgroundColor: "#FAFAF8" };
-
-  const iconBg = reporte.disponible ? "#EBF3E8" : "#F0EDE6";
-  const iconColor = reporte.disponible ? "#3D7A1C" : "#B0A99F";
-  const titleColor = reporte.disponible ? "#1A1A1A" : "#9B9488";
+  if (isGenerating) {
+    btnContent = <><Loader2 size={13} className="animate-spin" />Generando…</>;
+    btnStyle = { borderColor: "#3D7A1C", color: "#3D7A1C", backgroundColor: "#EBF3E8", cursor: "wait" };
+    btnDisabled = true;
+  } else if (!implemented) {
+    btnContent = "Próximamente";
+    btnStyle = { borderColor: "#D6D1C8", color: "#B8922A", backgroundColor: "#FEF3CD", cursor: "default" };
+    btnDisabled = true;
+  } else if (hasGenerated) {
+    btnContent = "Ver reporte";
+    btnStyle = { borderColor: "#3D7A1C", color: "#3D7A1C", backgroundColor: "#FFFFFF", cursor: "pointer" };
+    btnAction = () => onViewReport(latestReport!);
+  } else {
+    btnContent = "Generar";
+    btnStyle = { borderColor: "#3D7A1C", color: "#FFFFFF", backgroundColor: "#3D7A1C", cursor: isAnyBusy ? "not-allowed" : "pointer" };
+    btnAction = isAnyBusy ? undefined : onGenerate;
+    btnDisabled = isAnyBusy;
+  }
 
   return (
     <div
       className="rounded-xl p-5 flex flex-col gap-3 border transition-shadow"
-      style={cardStyle}
+      style={{ borderColor: isSelected ? "#3D7A1C" : "#C8E6C0", backgroundColor: "#FFFFFF",
+               boxShadow: isSelected ? "0 0 0 2px #C8E6C0" : undefined }}
     >
       <div className="flex items-start justify-between gap-2">
-        <div
-          className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-          style={{ backgroundColor: iconBg }}
-        >
-          {reporte.disponible
-            ? <Icon size={18} style={{ color: iconColor }} />
-            : <Lock size={15} style={{ color: iconColor }} />
-          }
+        {/* Checkbox + Icon */}
+        <div className="flex items-center gap-2">
+          {implemented && (
+            <button
+              onClick={onToggle}
+              className="shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center cursor-pointer transition-colors"
+              style={{
+                borderColor: isSelected ? "#3D7A1C" : "#C8E6C0",
+                backgroundColor: isSelected ? "#3D7A1C" : "#FFFFFF",
+              }}
+            >
+              {isSelected && (
+                <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                  <path d="M1.5 4L3 5.5L6.5 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              )}
+            </button>
+          )}
+          <div
+            className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+            style={{ backgroundColor: "#EBF3E8" }}
+          >
+            <Icon size={18} style={{ color: "#3D7A1C" }} />
+          </div>
         </div>
-        {reporte.disponible && implemented && (
-          <span
-            className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-            style={{ backgroundColor: "#EBF3E8", color: "#3D7A1C" }}
-          >
-            Disponible
-          </span>
-        )}
-        {reporte.disponible && !implemented && (
-          <span
-            className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-            style={{ backgroundColor: "#FEF3CD", color: "#B8922A" }}
-          >
-            Próximamente
-          </span>
-        )}
+
+        <div className="flex items-center gap-1.5">
+          {hasGenerated && (
+            <span
+              className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: "#EBF3E8", color: "#3D7A1C" }}
+            >
+              Generado
+            </span>
+          )}
+          {!hasGenerated && implemented && (
+            <span
+              className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: "#EBF3E8", color: "#3D7A1C" }}
+            >
+              Disponible
+            </span>
+          )}
+          {!implemented && (
+            <span
+              className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: "#FEF3CD", color: "#B8922A" }}
+            >
+              Próximamente
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="flex-1">
-        <h3 className="font-semibold text-sm mb-1" style={{ color: titleColor }}>
+        <h3 className="font-semibold text-sm mb-1" style={{ color: "#1A1A1A" }}>
           {reporte.nombre}
         </h3>
         <p className="text-xs leading-relaxed" style={{ color: "#9B9488" }}>
-          {reporte.disponible ? reporte.descripcion : reporte.motivo}
+          {REPORT_DESCRIPTIONS[reporte.id] ?? reporte.descripcion}
         </p>
       </div>
 
       <button
-        disabled={!canClick}
-        onClick={canClick ? onGenerate : undefined}
+        disabled={btnDisabled}
+        onClick={btnAction}
         className="mt-1 w-full py-2 rounded-lg text-xs font-semibold border transition-colors flex items-center justify-center gap-1.5"
-        style={
-          loading
-            ? { borderColor: "#3D7A1C", color: "#3D7A1C", backgroundColor: "#EBF3E8", cursor: "wait" }
-            : canClick
-            ? { borderColor: "#3D7A1C", color: "#ffffff", backgroundColor: "#3D7A1C", cursor: "pointer" }
-            : reporte.disponible && !implemented
-            ? { borderColor: "#D6D1C8", color: "#B8922A", backgroundColor: "#FEF3CD", cursor: "default" }
-            : { borderColor: "#D6D1C8", color: "#B0A99F", backgroundColor: "#F4F2EE", cursor: "not-allowed" }
-        }
-        onMouseEnter={(e) => { if (canClick) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#2F6016"; }}
-        onMouseLeave={(e) => { if (canClick) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#3D7A1C"; }}
+        style={btnStyle}
+        onMouseEnter={(e) => {
+          if (!btnDisabled && !hasGenerated && btnAction) {
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#2F6016";
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!btnDisabled && !hasGenerated && btnAction) {
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#3D7A1C";
+          }
+        }}
       >
-        {loading ? (
-          <><Loader2 size={13} className="animate-spin" />Generando…</>
-        ) : reporte.disponible && !implemented ? (
-          "Próximamente"
-        ) : reporte.disponible ? (
-          "Generar"
-        ) : (
-          "Sin datos suficientes"
-        )}
+        {btnContent}
       </button>
     </div>
   );
 }
 
-// ─── Sección completa ─────────────────────────────────────────────────────────
+// ─── Unavailable report card ──────────────────────────────────────────────────
+function UnavailableReportCard({
+  reporte,
+  detectedTipos,
+  onUpload,
+}: {
+  reporte: ReportePosible;
+  detectedTipos: string[];
+  onUpload: () => void;
+}) {
+  const [modalOpen, setModalOpen] = useState(false);
+  const Icon = REPORT_ICONS[reporte.id] ?? FileText;
+
+  return (
+    <>
+      <div
+        className="rounded-xl p-5 flex flex-col gap-3 border transition-shadow"
+        style={{ borderColor: "#E8E5DE", backgroundColor: "#FAFAF8" }}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div
+            className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+            style={{ backgroundColor: "#F0EDE6" }}
+          >
+            <Lock size={15} style={{ color: "#B0A99F" }} />
+          </div>
+        </div>
+
+        <div className="flex-1">
+          <h3 className="font-semibold text-sm mb-1" style={{ color: "#9B9488" }}>
+            {reporte.nombre}
+          </h3>
+          <p className="text-xs leading-relaxed" style={{ color: "#9B9488" }}>
+            {REPORT_DESCRIPTIONS[reporte.id] ?? reporte.descripcion}
+          </p>
+        </div>
+
+        <button
+          onClick={() => setModalOpen(true)}
+          className="mt-1 w-full py-2 rounded-lg text-xs font-semibold border transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+          style={{ borderColor: "#D6D1C8", color: "#9B9488", backgroundColor: "#F4F2EE" }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#E8E5DE";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F4F2EE";
+          }}
+        >
+          <Icon size={12} />
+          Ver documentación necesaria
+        </button>
+      </div>
+
+      {modalOpen && (
+        <RequiredDocsModal
+          reporte={reporte}
+          detectedTipos={detectedTipos}
+          onClose={() => setModalOpen(false)}
+          onUpload={onUpload}
+        />
+      )}
+    </>
+  );
+}
+
+// ─── Main section ─────────────────────────────────────────────────────────────
 type Props = {
   analysis: AnalysisResult;
-  generating: string | null;   // analysisId del reporte en generación
+  generating: string | null;
+  bulkProgress: { current: number; total: number } | null;
+  hasFiles: boolean;
+  latestByAnalysisId: Record<string, GeneratedReport>;
   onGenerate: (analysisId: string) => void;
+  onGenerateMultiple: (analysisIds: string[]) => void;
+  onViewReport: (report: GeneratedReport) => void;
+  onUpload: () => void;
 };
 
-export default function DocumentAnalysis({ analysis, generating, onGenerate }: Props) {
+export default function DocumentAnalysis({
+  analysis,
+  generating,
+  bulkProgress,
+  hasFiles,
+  latestByAnalysisId,
+  onGenerate,
+  onGenerateMultiple,
+  onViewReport,
+  onUpload,
+}: Props) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
   const available   = analysis.reportes_posibles.filter((r) => r.disponible);
   const unavailable = analysis.reportes_posibles.filter((r) => !r.disponible);
 
-  // Descripción compacta de documentos detectados
-  const docSummary = analysis.documentos_detectados
-    .map((d) => d.descripcion || d.tipo)
-    .join(" · ");
+  const detectedTipos = analysis.documentos_detectados.map((d) => d.tipo);
+  const docSummary    = analysis.documentos_detectados.map((d) => d.descripcion || d.tipo).join(" · ");
+
+  const isAnyBusy = !!generating || !!bulkProgress;
+
+  const toggleSelect = (id: string) => {
+    if (!IMPLEMENTED.has(id)) return;
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleGenerateSelected = () => {
+    onGenerateMultiple(Array.from(selected));
+    setSelected(new Set());
+  };
+
+  // Collapse/expand unavailable section — expanded by default
+  const [unavailableOpen, setUnavailableOpen] = useState(true);
 
   return (
     <section className="space-y-5">
+
+      {/* ── No-files warning ── */}
+      {!hasFiles && (
+        <div
+          className="flex items-start gap-3 rounded-xl px-4 py-3 text-sm border"
+          style={{ backgroundColor: "#FFFBEB", borderColor: "#F5D87A", color: "#92680A" }}
+        >
+          <span className="text-base leading-none mt-0.5">⚠️</span>
+          <span>
+            <strong>Los archivos no están en memoria.</strong> Subí los documentos de nuevo para generar nuevos reportes.
+            Los reportes ya generados siguen disponibles para ver y descargar.
+          </span>
+        </div>
+      )}
+
       {/* ── Info bar ── */}
       <div
         className="rounded-xl px-5 py-4 flex flex-wrap items-center gap-x-6 gap-y-2 border"
@@ -167,45 +471,109 @@ export default function DocumentAnalysis({ analysis, generating, onGenerate }: P
         </div>
       </div>
 
-      {/* ── Reportes disponibles ── */}
+      {/* ── Available reports ── */}
       {available.length > 0 && (
         <div>
-          <h2 className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "#9B9488" }}>
-            Reportes disponibles
-          </h2>
+          {/* Section header with bulk action */}
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#9B9488" }}>
+              Reportes disponibles
+            </h2>
+
+            <div className="flex items-center gap-3">
+              {/* Bulk progress */}
+              {bulkProgress && (
+                <div className="flex items-center gap-2">
+                  <Loader2 size={13} className="animate-spin" style={{ color: "#3D7A1C" }} />
+                  <span className="text-xs font-medium" style={{ color: "#3D7A1C" }}>
+                    Generando {bulkProgress.current} de {bulkProgress.total}…
+                  </span>
+                </div>
+              )}
+
+              {/* Select all toggle */}
+              {!isAnyBusy && (
+                <button
+                  onClick={() => {
+                    const implementedIds = available.filter(r => IMPLEMENTED.has(r.id)).map(r => r.id);
+                    if (selected.size === implementedIds.length) setSelected(new Set());
+                    else setSelected(new Set(implementedIds));
+                  }}
+                  className="text-xs cursor-pointer transition-colors"
+                  style={{ color: "#9B9488" }}
+                >
+                  {selected.size === available.filter(r => IMPLEMENTED.has(r.id)).length ? "Deseleccionar todo" : "Seleccionar todo"}
+                </button>
+              )}
+
+              {/* Generate selected button */}
+              {selected.size > 0 && !isAnyBusy && (
+                <button
+                  onClick={handleGenerateSelected}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white cursor-pointer transition-opacity hover:opacity-90"
+                  style={{ backgroundColor: "#3D7A1C" }}
+                >
+                  Generar seleccionados ({selected.size})
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="grid grid-cols-4 gap-4">
             {available.map((reporte) => (
-              <AnalysisReportCard
+              <AvailableReportCard
                 key={reporte.id}
                 reporte={reporte}
-                loading={generating === reporte.id}
-                onGenerate={
-                  IMPLEMENTED.has(reporte.id)
-                    ? () => onGenerate(reporte.id)
-                    : undefined
-                }
+                isGenerating={generating === reporte.id}
+                isAnyBusy={isAnyBusy}
+                isSelected={selected.has(reporte.id)}
+                latestReport={latestByAnalysisId[reporte.id] ?? null}
+                onToggle={() => toggleSelect(reporte.id)}
+                onGenerate={() => onGenerate(reporte.id)}
+                onViewReport={onViewReport}
               />
             ))}
           </div>
         </div>
       )}
 
-      {/* ── Reportes no disponibles ── */}
+      {/* ── Unavailable reports (collapsible) ── */}
       {unavailable.length > 0 && (
-        <div>
-          <h2 className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "#B0A99F" }}>
-            Requieren más documentación
-          </h2>
-          <div className="grid grid-cols-4 gap-4">
-            {unavailable.map((reporte) => (
-              <AnalysisReportCard
-                key={reporte.id}
-                reporte={reporte}
-                loading={false}
-                onGenerate={undefined}
-              />
-            ))}
-          </div>
+        <div
+          style={{
+            borderLeft: unavailableOpen ? "none" : "3px solid #3D7A1C",
+            paddingLeft: unavailableOpen ? 0 : 12,
+            transition: "all 0.15s",
+          }}
+        >
+          <button
+            className="flex items-center gap-2 mb-3 cursor-pointer group"
+            onClick={() => setUnavailableOpen((v) => !v)}
+          >
+            {unavailableOpen
+              ? <ChevronDown size={16} style={{ color: "#3D7A1C" }} />
+              : <ChevronRight size={16} style={{ color: "#3D7A1C" }} />
+            }
+            <h2
+              className="text-sm font-semibold uppercase tracking-widest transition-colors"
+              style={{ color: "#3D7A1C" }}
+            >
+              Requieren más documentación ({unavailable.length})
+            </h2>
+          </button>
+
+          {unavailableOpen && (
+            <div className="grid grid-cols-4 gap-4">
+              {unavailable.map((reporte) => (
+                <UnavailableReportCard
+                  key={reporte.id}
+                  reporte={reporte}
+                  detectedTipos={detectedTipos}
+                  onUpload={onUpload}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </section>

@@ -50,7 +50,7 @@ const SYSTEM_PROMPT = `Sos un analista especializado en documentación de empres
       "nombre": "Punto de Equilibrio",
       "descripcion": "Break-even y tabla de sensibilidad precios vs rindes",
       "disponible": true,
-      "motivo": "Hay estructura de costos fijos y variables identificable"
+      "motivo": "Se generará con la información disponible. Los campos faltantes quedarán marcados como pendientes."
     },
     {
       "id": "proyeccion",
@@ -70,13 +70,21 @@ const SYSTEM_PROMPT = `Sos un analista especializado en documentación de empres
       "id": "calificacion_bancaria",
       "nombre": "Calificación Bancaria",
       "descripcion": "Formulario unificado para presentación ante bancos",
-      "disponible": false,
-      "motivo": "Se necesita información adicional de campos, hacienda y maquinaria"
+      "disponible": true,
+      "motivo": "Se generará con la información disponible. Los campos faltantes quedarán marcados como pendientes."
     }
   ]
 }
 
-Evaluá qué reportes son posibles según la información real que encontrás en los documentos. Si un reporte necesita datos que no están, marcalo como no disponible y explicá qué falta. Respondé SOLO con el JSON.`;
+Reglas para disponibilidad:
+- situacion_patrimonial, ratios, bridge: disponible si hay balance o estado patrimonial.
+- margen_bruto: disponible si hay ventas por cultivo o estado de resultados con detalle de ingresos.
+- break_even: SIEMPRE disponible si hay al menos un balance. Se generará con lo disponible y los campos faltantes quedarán marcados como pendientes.
+- calificacion_bancaria: SIEMPRE disponible si hay al menos un balance. Se generará con lo disponible y los campos faltantes quedarán marcados como pendientes.
+- proyeccion: solo disponible si hay plan de siembra con hectáreas, rindes y precios estimados.
+- ranking_campos: solo disponible si hay detalle de producción por campo.
+
+Evaluá cada reporte según estas reglas y la información real de los documentos. Respondé SOLO con el JSON.`;
 
 export async function POST(request: NextRequest) {
   try {
