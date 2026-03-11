@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useAppContext } from "@/context/AppContext";
+import { ExtractedDocData } from "@/types/analysis";
 import { Upload, Loader2, Bell } from "lucide-react";
 import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
@@ -43,6 +44,11 @@ const ROUTE_MAP: Record<string, { reportId: string; apiPath: string; downloadPat
     reportId: "break-even",
     apiPath: "/api/reportes/break-even",
     downloadPath: "/api/reportes/break-even/download",
+  },
+  evolucion_historica: {
+    reportId: "evolucion-historica",
+    apiPath: "/api/reportes/evolucion-historica",
+    downloadPath: "/api/reportes/evolucion-historica/download",
   },
 };
 
@@ -92,15 +98,17 @@ export default function DashboardClient() {
     documents, setDocuments,
     generatedReports, setGeneratedReports,
     analysisResult, setAnalysisResult,
+    extractedDocsData, setExtractedDocsData,
     campos, planSiembra, campanaActual,
   } = useAppContext();
 
-  const [modalOpen,     setModalOpen]     = useState(false);
-  const [analyzing,     setAnalyzing]     = useState(false);
-  const [generating,    setGenerating]    = useState<string | null>(null);
-  const [bulkProgress,  setBulkProgress]  = useState<{ current: number; total: number } | null>(null);
-  const [genError,      setGenError]      = useState<string | null>(null);
-  const [previewReport, setPreviewReport] = useState<GeneratedReport | null>(null);
+  const [modalOpen,       setModalOpen]       = useState(false);
+  const [analyzing,       setAnalyzing]       = useState(false);
+  const [extractProgress, setExtractProgress] = useState<{ current: number; total: number } | null>(null);
+  const [generating,      setGenerating]      = useState<string | null>(null);
+  const [bulkProgress,    setBulkProgress]    = useState<{ current: number; total: number } | null>(null);
+  const [genError,        setGenError]        = useState<string | null>(null);
+  const [previewReport,   setPreviewReport]   = useState<GeneratedReport | null>(null);
 
   // ── Notification bell ─────────────────────────────────────────────────────
   const [bellOpen,   setBellOpen]   = useState(false);
@@ -137,9 +145,16 @@ export default function DashboardClient() {
     if (!route) return;
     const reporte = analysisResult?.reportes_posibles.find((r) => r.id === analysisId);
     const title = reporte?.nombre ?? analysisId;
-    const fd = new FormData();
-    fileStore.forEach((f) => fd.append("files", f));
-    const res = await fetch(route.apiPath, { method: "POST", body: fd });
+
+    if (extractedDocsData.length === 0) {
+      throw new Error("No hay datos extraídos. Volvé a subir los documentos.");
+    }
+
+    const res = await fetch(route.apiPath, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ extractedData: extractedDocsData }),
+    });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error ?? `Error ${res.status}`);
     setGeneratedReports((prev) => [
@@ -157,10 +172,6 @@ export default function DashboardClient() {
 
   const handleGenerate = async (analysisId: string) => {
     if (generating || bulkProgress) return;
-    if (fileStore.length === 0) {
-      setGenError("Subí los documentos de nuevo para generar nuevos reportes.");
-      return;
-    }
     setGenerating(analysisId);
     setGenError(null);
     try { await generateOne(analysisId); }
@@ -171,10 +182,6 @@ export default function DashboardClient() {
   const handleGenerateMultiple = async (analysisIds: string[]) => {
     const valid = analysisIds.filter((id) => ROUTE_MAP[id]);
     if (!valid.length || generating || bulkProgress) return;
-    if (fileStore.length === 0) {
-      setGenError("Subí los documentos de nuevo para generar nuevos reportes.");
-      return;
-    }
     setGenError(null);
     for (let i = 0; i < valid.length; i++) {
       setBulkProgress({ current: i + 1, total: valid.length });
@@ -184,14 +191,62 @@ export default function DashboardClient() {
     setBulkProgress(null);
   };
 
-  // ── Upload confirm ────────────────────────────────────────────────────────
-  const runAnalysis = async (files: File[]) => {
+  // ── Upload & extraction flow ───────────────────────────────────────────────
+  const runAnalysisWithProgress = async (files: File[]) => {
     setAnalyzing(true);
     setAnalysisResult(null);
+    setExtractedDocsData([]);
+
+    const collected: ExtractedDocData[] = [];
+
+    // Step 1: extract each file individually
+    if (files.length > 1) {
+      for (let i = 0; i < files.length; i++) {
+        setExtractProgress({ current: i + 1, total: files.length });
+        try {
+          const fd = new FormData();
+          fd.append("file", files[i]);
+          const res = await fetch("/api/analizar-documentos/extraer-uno", { method: "POST", body: fd });
+          const body = await res.json();
+          if (res.ok && body.data) collected.push(body.data as ExtractedDocData);
+        } catch {
+          // continue even if one file fails
+        }
+      }
+      setExtractProgress(null);
+      setExtractedDocsData(collected);
+    }
+
+    // Step 2: determine available reports
     try {
-      const fd = new FormData();
-      files.forEach((f) => fd.append("files", f));
-      const res = await fetch("/api/analizar-documentos", { method: "POST", body: fd });
+      let res: Response;
+      if (collected.length > 0) {
+        // Use pre-extracted JSON
+        res = await fetch("/api/analizar-documentos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ extractedData: collected }),
+        });
+      } else {
+        // Single file or fallback: send raw file
+        const fd = new FormData();
+        files.forEach((f) => fd.append("files", f));
+        res = await fetch("/api/analizar-documentos", { method: "POST", body: fd });
+
+        // Also extract the single file for report generation
+        if (files.length === 1) {
+          try {
+            const fd2 = new FormData();
+            fd2.append("file", files[0]);
+            const r2 = await fetch("/api/analizar-documentos/extraer-uno", { method: "POST", body: fd2 });
+            const b2 = await r2.json();
+            if (r2.ok && b2.data) {
+              collected.push(b2.data as ExtractedDocData);
+              setExtractedDocsData(collected);
+            }
+          } catch { /* ignore */ }
+        }
+      }
       const body = await res.json();
       if (res.ok && body.data) setAnalysisResult(body.data);
       else setGenError(body.error ?? "No se pudo analizar los documentos");
@@ -207,7 +262,7 @@ export default function DashboardClient() {
     setDocuments((prev) => [...prev, ...newDocs]);
     setFileStore(allFiles);
     setModalOpen(false);
-    runAnalysis(allFiles);
+    runAnalysisWithProgress(allFiles);
   };
 
   // ── Enrich analysis with gestión data ────────────────────────────────────
@@ -382,6 +437,27 @@ export default function DashboardClient() {
               </div>
             )}
 
+            {/* Modo histórico banner */}
+            {enrichedAnalysis?.modo === "historico" && enrichedAnalysis.ejercicios && enrichedAnalysis.ejercicios.length >= 2 && (
+              <div
+                className="flex items-center gap-3 px-5 py-3 rounded-xl border text-sm font-medium"
+                style={{ backgroundColor: "#F5FAF3", borderColor: "#3D7A1C", color: "#1A3311" }}
+              >
+                <span className="text-lg">📊</span>
+                <div>
+                  <span className="font-bold" style={{ color: "#3D7A1C" }}>
+                    {enrichedAnalysis.balances_detectados} balances detectados ({enrichedAnalysis.ejercicios[0]}–{enrichedAnalysis.ejercicios[enrichedAnalysis.ejercicios.length - 1]})
+                  </span>
+                  <span className="ml-2" style={{ color: "#6B6560" }}>· Modo Análisis Histórico activado</span>
+                  {enrichedAnalysis.empresa_consistente === false && (
+                    <span className="ml-2 text-xs font-semibold px-2 py-0.5 rounded" style={{ backgroundColor: "#FEF3CD", color: "#92680A" }}>
+                      ⚠ Empresas distintas detectadas
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* KPIs */}
             <section>
               <h2 className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: "#9B9488" }}>
@@ -400,10 +476,29 @@ export default function DashboardClient() {
                   style={{ borderColor: "#E8E5DE", backgroundColor: "#FFFFFF" }}
                 >
                   <Loader2 size={28} className="animate-spin" style={{ color: "#3D7A1C" }} />
-                  <p className="font-medium text-sm" style={{ color: "#1A1A1A" }}>Analizando documentación…</p>
-                  <p className="text-xs" style={{ color: "#9B9488" }}>
-                    Claude está leyendo tus documentos y detectando qué reportes son posibles
-                  </p>
+                  {extractProgress ? (
+                    <>
+                      <p className="font-medium text-sm" style={{ color: "#1A1A1A" }}>
+                        Procesando documento {extractProgress.current} de {extractProgress.total}…
+                      </p>
+                      <div className="w-48 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "#E8E5DE" }}>
+                        <div
+                          className="h-full rounded-full transition-all duration-300"
+                          style={{ backgroundColor: "#3D7A1C", width: `${(extractProgress.current / extractProgress.total) * 100}%` }}
+                        />
+                      </div>
+                      <p className="text-xs" style={{ color: "#9B9488" }}>
+                        Extrayendo datos de cada balance por separado
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium text-sm" style={{ color: "#1A1A1A" }}>Analizando documentación…</p>
+                      <p className="text-xs" style={{ color: "#9B9488" }}>
+                        Claude está detectando qué reportes son posibles
+                      </p>
+                    </>
+                  )}
                 </div>
               </section>
             ) : enrichedAnalysis ? (
@@ -411,7 +506,7 @@ export default function DashboardClient() {
                 analysis={enrichedAnalysis}
                 generating={generating}
                 bulkProgress={bulkProgress}
-                hasFiles={fileStore.length > 0}
+                hasFiles={extractedDocsData.length > 0}
                 latestByAnalysisId={latestByAnalysisId}
                 onGenerate={handleGenerate}
                 onGenerateMultiple={handleGenerateMultiple}

@@ -1074,6 +1074,246 @@ function BreakEvenTable({ d }: { d: any }) {
   );
 }
 
+// ─── Evolución Histórica ──────────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function EvolucionHistoricaTable({ d }: { d: any }) {
+  const [tab, setTab] = useState<"evolucion" | "ratios" | "tendencias" | "analisis">("evolucion");
+  const periodos: string[] = d.periodos ?? [];
+
+  const TOTALES = new Set(["RESULTADO BRUTO", "RESULTADO ANTES DE IG", "RESULTADO NETO",
+    "TOTAL ACTIVO CORRIENTE", "TOTAL ACTIVO", "TOTAL PASIVO", "PATRIMONIO NETO"]);
+
+  const tabs = [
+    { id: "evolucion" as const,   label: "Evolución" },
+    { id: "ratios" as const,      label: "Ratios" },
+    { id: "tendencias" as const,  label: "Tendencias" },
+    { id: "analisis" as const,    label: "Análisis" },
+  ];
+
+  // ── Horizontal scrollable table for results / patrimony ──────────────────
+  function EvoTable({ data }: { data: { headers: string[]; filas: { concepto?: string; ratio?: string; valores: (number | null)[]; formato?: string }[] } }) {
+    const headers = data.headers ?? [];
+    const filas   = data.filas   ?? [];
+    return (
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: Math.max(600, headers.length * 120) }}>
+          <thead>
+            <tr>
+              {headers.map((h, i) => (
+                <th key={i} style={{ ...S.th, textAlign: i === 0 ? "left" : "right", minWidth: i === 0 ? 220 : 110 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filas.map((fila, ri) => {
+              const label   = fila.concepto ?? fila.ratio ?? "";
+              const isTotal = TOTALES.has(label);
+              const isInd   = label.startsWith("  ");
+              return (
+                <tr key={ri} style={isTotal ? {} : { backgroundColor: ri % 2 === 0 ? "#FFFFFF" : "#FAFAF8" }}>
+                  <td style={isTotal ? { ...S.total, textAlign: "left" } : { ...S.tdL, paddingLeft: isInd ? 28 : 12, fontStyle: isInd ? "italic" : "normal" }}>
+                    {label.trim()}
+                  </td>
+                  {(fila.valores ?? []).map((v, ci) => {
+                    const prev = ci > 0 ? (fila.valores ?? [])[ci - 1] : null;
+                    const improved = v !== null && prev !== null && v > prev;
+                    const worsened = v !== null && prev !== null && v < prev;
+                    const numStyle: React.CSSProperties = {
+                      ...(isTotal ? S.totalR : S.tdR),
+                      color: isTotal
+                        ? "#fff"
+                        : v === null ? "#C8C3BB"
+                        : fila.formato
+                          ? (improved ? "#3D7A1C" : worsened ? "#C0392B" : "#1A1A1A")
+                          : (typeof v === "number" && v < 0 ? "#C0392B" : "#1A1A1A"),
+                      fontWeight: isTotal ? 700 : ci > 0 && (improved || worsened) && fila.formato ? 700 : 400,
+                    };
+                    const display = v === null ? "—"
+                      : fila.formato === "porcentaje"
+                        ? `${new Intl.NumberFormat("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(v)}%`
+                        : fila.formato === "veces"
+                          ? `${new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v)}x`
+                          : fmt(v);
+                    return <td key={ci} style={numStyle}>{display}</td>;
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Periods summary */}
+      {periodos.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          {periodos.map((p) => (
+            <span key={p} style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999, backgroundColor: "#EBF3E8", color: "#3D7A1C", border: "1px solid #C8E6C0" }}>{p}</span>
+          ))}
+          {d.moneda_nota && <span style={{ fontSize: 10, color: "#9B9488", fontStyle: "italic" }}>{d.moneda_nota}</span>}
+        </div>
+      )}
+
+      {/* Tab switcher */}
+      <div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 12, backgroundColor: "#F0EDE6", width: "fit-content", border: "1px solid #E8E5DE" }}>
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            style={{
+              padding: "6px 18px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", border: "none",
+              backgroundColor: tab === t.id ? "#3D7A1C" : "transparent",
+              color: tab === t.id ? "#fff" : "#6B6560",
+              transition: "all 0.15s",
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Tab: Evolución ── */}
+      {tab === "evolucion" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          {d.evolucion_resultados && (
+            <div>
+              <div style={{ ...S.section as React.CSSProperties, borderRadius: "8px 8px 0 0" }}>EVOLUCIÓN DE RESULTADOS</div>
+              <EvoTable data={d.evolucion_resultados} />
+            </div>
+          )}
+          {d.evolucion_patrimonial && (
+            <div>
+              <div style={{ ...S.section as React.CSSProperties, borderRadius: "8px 8px 0 0" }}>EVOLUCIÓN PATRIMONIAL</div>
+              <EvoTable data={d.evolucion_patrimonial} />
+            </div>
+          )}
+          {(d.ventas_por_cultivo_historico ?? []).length > 0 && (
+            <div>
+              <div style={{ ...S.section as React.CSSProperties, borderRadius: "8px 8px 0 0" }}>VENTAS POR CULTIVO HISTÓRICO</div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      <th style={{ ...S.th, minWidth: 140 }}>Cultivo</th>
+                      {periodos.map((p) => <th key={p} style={{ ...S.thR, minWidth: 110 }}>{p}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {d.ventas_por_cultivo_historico.map((row: { cultivo: string; valores: (number | null)[] }, i: number) => (
+                      <tr key={i} style={{ backgroundColor: i % 2 === 0 ? "#FFFFFF" : "#FAFAF8" }}>
+                        <td style={S.tdL}>{row.cultivo}</td>
+                        {(row.valores ?? []).map((v: number | null, ci: number) => (
+                          <td key={ci} style={S.tdR}>{v !== null ? fmt(v) : "—"}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Tab: Ratios ── */}
+      {tab === "ratios" && d.evolucion_ratios && (
+        <div>
+          <div style={{ ...S.section as React.CSSProperties, borderRadius: "8px 8px 0 0" }}>RATIOS HISTÓRICOS</div>
+          <EvoTable data={d.evolucion_ratios} />
+          <p style={{ fontSize: 10, color: "#9B9488", padding: "6px 12px", fontStyle: "italic" }}>
+            Verde = mejora vs año anterior · Rojo = empeora vs año anterior
+          </p>
+        </div>
+      )}
+
+      {/* ── Tab: Tendencias ── */}
+      {tab === "tendencias" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {(d.tendencias ?? []).length > 0 && (
+            <div>
+              <div style={{ ...S.section as React.CSSProperties, borderRadius: "8px 8px 0 0" }}>TENDENCIAS</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                {d.tendencias.map((t: Record<string, string>, i: number) => {
+                  const icon = t.tendencia === "creciente" ? "↑" : t.tendencia === "decreciente" ? "↓" : t.tendencia === "volátil" ? "⚡" : "→";
+                  const color = t.tendencia === "creciente" ? "#3D7A1C" : t.tendencia === "decreciente" ? "#C0392B" : "#D4AD3C";
+                  return (
+                    <div key={i} style={{ padding: "10px 14px", backgroundColor: i % 2 === 0 ? "#FFFFFF" : "#FAFAF8", borderBottom: "1px solid #F0EDE6", display: "flex", gap: 12, alignItems: "flex-start" }}>
+                      <span style={{ fontSize: 16, color, flexShrink: 0, lineHeight: 1.2 }}>{icon}</span>
+                      <div>
+                        <p style={{ fontWeight: 700, fontSize: 12, color: "#1A1A1A", margin: 0 }}>{t.indicador}</p>
+                        <p style={{ fontSize: 11, color: "#6B6560", margin: "2px 0 0" }}>
+                          Mejor: <strong>{t.mejor_año}</strong> · Peor: <strong>{t.peor_año}</strong> · {t.valor_actual_vs_promedio}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {(d.patrones_detectados ?? []).length > 0 && (
+            <div>
+              <div style={{ ...S.section as React.CSSProperties, borderRadius: "8px 8px 0 0" }}>PATRONES DETECTADOS</div>
+              {d.patrones_detectados.map((p: string, i: number) => (
+                <div key={i} style={{ padding: "10px 14px", backgroundColor: i % 2 === 0 ? "#FFFFFF" : "#FAFAF8", borderBottom: "1px solid #F0EDE6", display: "flex", gap: 10 }}>
+                  <span style={{ color: "#3D7A1C", flexShrink: 0 }}>◆</span>
+                  <p style={{ fontSize: 11, color: "#1A1A1A", margin: 0, lineHeight: 1.5 }}>{p}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          {(d.alertas_historicas ?? []).length > 0 && (
+            <div>
+              <div style={{ ...S.section as React.CSSProperties, borderRadius: "8px 8px 0 0", backgroundColor: "#D4AD3C" }}>⚠ ALERTAS HISTÓRICAS</div>
+              {d.alertas_historicas.map((a: string, i: number) => (
+                <div key={i} style={{ padding: "10px 14px", backgroundColor: i % 2 === 0 ? "#FFFBEB" : "#FFF7DC", borderBottom: "1px solid #F0EDE6", display: "flex", gap: 10 }}>
+                  <span style={{ color: "#D4AD3C", flexShrink: 0 }}>⚠</span>
+                  <p style={{ fontSize: 11, color: "#1A1A1A", margin: 0, lineHeight: 1.5 }}>{a}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Tab: Análisis ── */}
+      {tab === "analisis" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {d.resumen_narrativo && (
+            <div style={{ padding: 18, borderRadius: 12, backgroundColor: "#F5FAF3", border: "1px solid #C8E6C0" }}>
+              <p style={{ fontWeight: 700, fontSize: 12, color: "#3D7A1C", marginBottom: 10 }}>RESUMEN EJECUTIVO</p>
+              <p style={{ fontSize: 13, color: "#1A1A1A", lineHeight: 1.7, margin: 0 }}>{d.resumen_narrativo}</p>
+            </div>
+          )}
+          {(d.patrones_detectados ?? []).length > 0 && (
+            <div style={{ padding: 16, borderRadius: 12, backgroundColor: "#FAFAF8", border: "1px solid #E8E5DE" }}>
+              <p style={{ fontWeight: 700, fontSize: 12, color: "#1A1A1A", marginBottom: 10 }}>PATRONES DETECTADOS</p>
+              <ul style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 6 }}>
+                {d.patrones_detectados.map((p: string, i: number) => (
+                  <li key={i} style={{ fontSize: 12, color: "#1A1A1A", lineHeight: 1.5 }}>{p}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {(d.alertas_historicas ?? []).length > 0 && (
+            <div style={{ padding: 16, borderRadius: 12, backgroundColor: "#FFFBEB", border: "1px solid #F5D87A" }}>
+              <p style={{ fontWeight: 700, fontSize: 12, color: "#92680A", marginBottom: 10 }}>⚠ ALERTAS HISTÓRICAS</p>
+              <ul style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 6 }}>
+                {d.alertas_historicas.map((a: string, i: number) => (
+                  <li key={i} style={{ fontSize: 12, color: "#7B5E1A", lineHeight: 1.5 }}>{a}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Dispatcher ───────────────────────────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function ReportTable({ reportId, d }: { reportId: string; d: any }) {
@@ -1082,6 +1322,7 @@ function ReportTable({ reportId, d }: { reportId: string; d: any }) {
   if (reportId === "bridge")                return <BridgeTable d={d} />;
   if (reportId === "break-even")            return <BreakEvenTable d={d} />;
   if (reportId === "calificacion-bancaria") return <CalificacionBancariaTable d={d} />;
+  if (reportId === "evolucion-historica")   return <EvolucionHistoricaTable d={d} />;
   return <PatrimonialTable d={d} />;
 }
 

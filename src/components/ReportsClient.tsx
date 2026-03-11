@@ -15,6 +15,7 @@ const REPORT_LABELS: Record<string, string> = {
   "bridge":                "Bridge de Resultados",
   "break-even":            "Punto de Equilibrio",
   "calificacion-bancaria": "Calificación Bancaria",
+  "evolucion-historica":   "Evolución Histórica",
 };
 
 async function triggerExcelDownload(report: GeneratedReport) {

@@ -322,6 +322,110 @@ function renderCalificacion(doc: jsPDF, d: any, startY: number) {
   doc.text(`Completitud del formulario: ${completitud}%`, 14, y);
 }
 
+// ─── Evolución Histórica ──────────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function renderEvolucionHistorica(doc: jsPDF, d: any, startY: number) {
+  const periodos: string[] = d.periodos ?? [];
+  let y = startY;
+
+  // Periods banner
+  if (periodos.length > 0) {
+    doc.setFontSize(8);
+    doc.setTextColor(...C.muted);
+    doc.text(`Ejercicios analizados: ${periodos.join(" · ")}`, 14, y);
+    y += 6;
+    if (d.moneda_nota) {
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "italic");
+      doc.text(d.moneda_nota, 14, y);
+      doc.setFont("helvetica", "normal");
+      y += 6;
+    }
+  }
+
+  function evoTable(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    section: any,
+    labelKey: "concepto" | "ratio",
+    title: string,
+    startingY: number
+  ): number {
+    if (!section?.filas?.length) return startingY;
+    const hy = sectionTitle(doc, title, startingY);
+    const headers = section.headers ?? [labelKey, ...periodos];
+    const body = section.filas.map(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (f: any) => [
+        f[labelKey]?.trim() ?? "",
+        ...(f.valores ?? []).map((v: number | null) =>
+          v === null ? "—"
+          : f.formato === "porcentaje" ? fmtPct(v)
+          : f.formato === "veces"      ? `${fmtNum(v)}x`
+          : fmtNum(v)
+        ),
+      ]
+    );
+    autoTable(doc, {
+      startY: hy,
+      head: [headers],
+      body,
+      headStyles: HEAD,
+      alternateRowStyles: ALT,
+      bodyStyles: { ...BODY, halign: "right" as const },
+      columnStyles: { 0: { halign: "left" as const, cellWidth: 60 } },
+      margin: { left: 14, right: 14 },
+    });
+    return lastY(doc) + 4;
+  }
+
+  y = evoTable(d.evolucion_resultados, "concepto", "EVOLUCIÓN DE RESULTADOS", y);
+  y = evoTable(d.evolucion_patrimonial, "concepto", "EVOLUCIÓN PATRIMONIAL", y);
+  y = evoTable(d.evolucion_ratios, "ratio", "RATIOS HISTÓRICOS", y);
+
+  // Resumen narrativo
+  if (d.resumen_narrativo) {
+    y = sectionTitle(doc, "RESUMEN EJECUTIVO", y);
+    doc.setFontSize(9);
+    doc.setTextColor(...C.text);
+    const lines = doc.splitTextToSize(d.resumen_narrativo as string, 180);
+    doc.text(lines, 14, y + 6);
+    y += lines.length * 5 + 10;
+  }
+
+  // Tendencias
+  if (d.tendencias?.length) {
+    y = sectionTitle(doc, "TENDENCIAS DETECTADAS", y);
+    y += 4;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const t of d.tendencias as any[]) {
+      if (y > 260) { doc.addPage(); y = 20; }
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...C.text);
+      doc.text(`${t.indicador} — ${t.tendencia}`, 14, y);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(...C.muted);
+      doc.text(`Mejor: ${t.mejor_año} · Peor: ${t.peor_año} · ${t.valor_actual_vs_promedio ?? ""}`, 18, y + 4);
+      y += 10;
+    }
+  }
+
+  // Alertas
+  if (d.alertas_historicas?.length) {
+    y = sectionTitle(doc, "ALERTAS HISTÓRICAS", y + 4);
+    y += 4;
+    for (const a of d.alertas_historicas as string[]) {
+      if (y > 260) { doc.addPage(); y = 20; }
+      const lines = doc.splitTextToSize(`⚠  ${a}`, 180);
+      doc.setFontSize(8);
+      doc.setTextColor(...C.amber);
+      doc.text(lines, 14, y);
+      y += lines.length * 4.5 + 3;
+    }
+  }
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 export function generateReportPDF(report: GeneratedReport) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
@@ -334,6 +438,7 @@ export function generateReportPDF(report: GeneratedReport) {
     "bridge":                "BRIDGE DE RESULTADOS",
     "break-even":            "PUNTO DE EQUILIBRIO",
     "calificacion-bancaria": "CALIFICACIÓN BANCARIA",
+    "evolucion-historica":   "EVOLUCIÓN HISTÓRICA",
   };
 
   const title = TITLES[report.reportId] ?? report.title.toUpperCase();
@@ -346,6 +451,7 @@ export function generateReportPDF(report: GeneratedReport) {
     case "bridge":                renderBridge(doc, d, startY); break;
     case "break-even":            renderBreakEven(doc, d, startY); break;
     case "calificacion-bancaria": renderCalificacion(doc, d, startY); break;
+    case "evolucion-historica":   renderEvolucionHistorica(doc, d, startY); break;
     default:
       doc.setFontSize(10);
       doc.setTextColor(...C.text);

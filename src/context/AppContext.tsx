@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { UploadedDoc } from "@/types/document";
 import { GeneratedReport } from "@/types/report";
-import { AnalysisResult } from "@/types/analysis";
+import { AnalysisResult, ExtractedDocData } from "@/types/analysis";
 import { Campo, Lote, StockPorCampo, MovimientoHacienda, ArchivoPlano } from "@/types/gestion";
 
 type AppCtx = {
@@ -15,6 +15,8 @@ type AppCtx = {
   setGeneratedReports: React.Dispatch<React.SetStateAction<GeneratedReport[]>>;
   analysisResult:      AnalysisResult | null;
   setAnalysisResult:   React.Dispatch<React.SetStateAction<AnalysisResult | null>>;
+  extractedDocsData:   ExtractedDocData[];
+  setExtractedDocsData: React.Dispatch<React.SetStateAction<ExtractedDocData[]>>;
   // Gestión
   campos:              Campo[];
   setCampos:           React.Dispatch<React.SetStateAction<Campo[]>>;
@@ -42,6 +44,8 @@ const AppContext = createContext<AppCtx>({
   setGeneratedReports:    () => {},
   analysisResult:         null,
   setAnalysisResult:      () => {},
+  extractedDocsData:      [],
+  setExtractedDocsData:   () => {},
   campos:                 [],
   setCampos:              () => {},
   planSiembra:            [],
@@ -63,6 +67,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [documents,            setDocuments]            = useState<UploadedDoc[]>([]);
   const [generatedReports,     setGeneratedReports]     = useState<GeneratedReport[]>([]);
   const [analysisResult,       setAnalysisResult]       = useState<AnalysisResult | null>(null);
+  const [extractedDocsData,    setExtractedDocsData]    = useState<ExtractedDocData[]>([]);
   const [campos,               setCampos]               = useState<Campo[]>([]);
   const [planSiembra,          setPlanSiembra]          = useState<Lote[]>([]);
   const [campanaActual,        setCampanaActual]        = useState<string>("2025/26");
@@ -83,9 +88,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const savedCampana    = localStorage.getItem("agroforma_campana");
       const savedStock      = localStorage.getItem("agroforma_stock_hacienda");
       const savedMovimientos = localStorage.getItem("agroforma_movimientos_hacienda");
+      const savedExtracted  = localStorage.getItem("agroforma_extracted_docs");
       if (savedDocs)        setDocuments(JSON.parse(savedDocs));
       if (savedReports)     setGeneratedReports(JSON.parse(savedReports));
       if (savedAnalysis)    setAnalysisResult(JSON.parse(savedAnalysis));
+      if (savedExtracted)   setExtractedDocsData(JSON.parse(savedExtracted));
       if (savedCampos)      setCampos(JSON.parse(savedCampos));
       if (savedPlan)        setPlanSiembra(JSON.parse(savedPlan));
       if (savedCampana)     setCampanaActual(savedCampana);
@@ -101,6 +108,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (!hydrated) return; localStorage.setItem("agroforma_documents", JSON.stringify(documents)); }, [documents, hydrated]);
   useEffect(() => { if (!hydrated) return; localStorage.setItem("agroforma_reports", JSON.stringify(generatedReports)); }, [generatedReports, hydrated]);
   useEffect(() => { if (!hydrated) return; localStorage.setItem("agroforma_analysis", JSON.stringify(analysisResult)); }, [analysisResult, hydrated]);
+  useEffect(() => { if (!hydrated) return; localStorage.setItem("agroforma_extracted_docs", JSON.stringify(extractedDocsData)); }, [extractedDocsData, hydrated]);
   useEffect(() => { if (!hydrated) return; localStorage.setItem("agroforma_campos", JSON.stringify(campos)); }, [campos, hydrated]);
   useEffect(() => { if (!hydrated) return; localStorage.setItem("agroforma_plan_siembra", JSON.stringify(planSiembra)); }, [planSiembra, hydrated]);
   useEffect(() => { if (!hydrated) return; localStorage.setItem("agroforma_campana", campanaActual); }, [campanaActual, hydrated]);
@@ -114,6 +122,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       documents, setDocuments,
       generatedReports, setGeneratedReports,
       analysisResult, setAnalysisResult,
+      extractedDocsData, setExtractedDocsData,
       campos, setCampos,
       planSiembra, setPlanSiembra,
       campanaActual, setCampanaActual,

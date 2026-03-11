@@ -436,7 +436,7 @@ export default function DocumentAnalysis({
         >
           <span className="text-base leading-none mt-0.5">⚠️</span>
           <span>
-            <strong>Los archivos no están en memoria.</strong> Subí los documentos de nuevo para generar nuevos reportes.
+            <strong>No hay datos extraídos en sesión.</strong> Subí los documentos de nuevo para generar nuevos reportes.
             Los reportes ya generados siguen disponibles para ver y descargar.
           </span>
         </div>
