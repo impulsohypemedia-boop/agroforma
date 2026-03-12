@@ -1,14 +1,32 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Send, Trash2, Upload, Plus, FileDown, FileSpreadsheet, MessageSquare } from "lucide-react";
+import {
+  Send, Trash2, Upload, Plus, FileDown, FileSpreadsheet,
+  MessageSquare, FileText, Download, Save, Eye, Sparkles,
+} from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import { useAppContext } from "@/context/AppContext";
 import { AnalysisResult } from "@/types/analysis";
+import { GeneratedReport } from "@/types/report";
 import { generateChatMessagePDF } from "@/lib/pdf/report-pdf";
+import { extractOutermostJSON } from "@/lib/extractJSON";
+import ReportPreviewModal from "@/components/ReportPreviewModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type Message = { role: "user" | "assistant"; content: string };
+type ModifiedReportData = {
+  reportId: string;
+  reportTitle: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any;
+  instruction: string;
+};
+
+type Message = {
+  role: "user" | "assistant";
+  content: string;
+  modifiedReport?: ModifiedReportData;
+};
 
 type Conversation = {
   id: string;
@@ -18,6 +36,18 @@ type Conversation = {
   updatedAt: string;
 };
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+const REPORT_LABELS: Record<string, string> = {
+  "situacion-patrimonial":  "Situación Patrimonial",
+  "margen-bruto":           "Margen Bruto por Cultivo",
+  "ratios":                 "Ratios e Indicadores",
+  "bridge":                 "Bridge de Resultados",
+  "break-even":             "Punto de Equilibrio",
+  "calificacion-bancaria":  "Calificación Bancaria",
+  "evolucion-historica":    "Evolución Histórica",
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function makeTitle(msg: string): string {
   const clean = msg.trim().replace(/\n/g, " ");
   return clean.length > 42 ? clean.slice(0, 42) + "…" : clean;
@@ -31,6 +61,57 @@ function timeAgo(iso: string): string {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24)  return `Hace ${hrs}h`;
   return `Hace ${Math.floor(hrs / 24)}d`;
+}
+
+function hasTable(text: string): boolean {
+  return text.split("\n").some((l) => l.trim().startsWith("|") && l.trim().endsWith("|"));
+}
+
+/**
+ * Parse a streamed response for report modification markers.
+ * Returns clean text and optional modifiedReport payload.
+ */
+function parseModifiedReport(raw: string): { cleanText: string; modifiedReport: ModifiedReportData | null } {
+  const startTag = "REPORTE_MODIFICADO_START";
+  const endTag   = "REPORTE_MODIFICADO_END";
+
+  if (!raw.includes(startTag)) return { cleanText: raw, modifiedReport: null };
+
+  // Extract RESPUESTA_TEXTO
+  const textoMatch = raw.match(/RESPUESTA_TEXTO:\s*([\s\S]*?)(?=REPORT_ID:|REPORTE_MODIFICADO_START)/);
+  const cleanText  = textoMatch ? textoMatch[1].trim() : "";
+
+  // Extract REPORT_ID — match word chars and hyphens only
+  const reportIdMatch = raw.match(/REPORT_ID:\s*([\w-]+)/);
+  const reportId      = reportIdMatch ? reportIdMatch[1].trim() : "margen-bruto";
+
+  // Extract JSON block
+  const jsonStartIdx = raw.indexOf(startTag) + startTag.length;
+  const jsonEndIdx   = raw.indexOf(endTag);
+  if (jsonEndIdx === -1) return { cleanText: raw, modifiedReport: null };
+
+  const jsonStr = raw.slice(jsonStartIdx, jsonEndIdx).trim();
+  const parsed  = extractOutermostJSON(jsonStr);
+  if (!parsed) return { cleanText: raw, modifiedReport: null };
+
+  // Extract INSTRUCCION — everything after the marker until end of string
+  const instrMatch  = raw.match(/INSTRUCCION:\s*(.+?)(?:\n|$)/);
+  const instruction = instrMatch ? instrMatch[1].trim() : "";
+
+  try {
+    const data = JSON.parse(parsed);
+    return {
+      cleanText,
+      modifiedReport: {
+        reportId,
+        reportTitle: REPORT_LABELS[reportId] ?? "Reporte",
+        data,
+        instruction,
+      },
+    };
+  } catch {
+    return { cleanText: raw, modifiedReport: null };
+  }
 }
 
 // ─── Markdown renderer ────────────────────────────────────────────────────────
@@ -113,10 +194,6 @@ function MarkdownContent({ text }: { text: string }) {
   return <div>{nodes}</div>;
 }
 
-function hasTable(text: string): boolean {
-  return text.split("\n").some((l) => l.trim().startsWith("|") && l.trim().endsWith("|"));
-}
-
 // ─── Typing indicator ─────────────────────────────────────────────────────────
 function TypingDots() {
   return (
@@ -129,22 +206,193 @@ function TypingDots() {
   );
 }
 
+// ─── Modified Report Card ─────────────────────────────────────────────────────
+function ModifiedReportCard({
+  modified,
+  empresa,
+  onSave,
+  onPreview,
+}: {
+  modified: ModifiedReportData;
+  empresa: string | null;
+  onSave: (m: ModifiedReportData) => void;
+  onPreview: (m: ModifiedReportData) => void;
+}) {
+  const [downloading, setDownloading] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const handleExcel = async () => {
+    setDownloading(true);
+    try {
+      const res = await fetch(`/api/reportes/${modified.reportId}/download`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: modified.data }),
+      });
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `${modified.reportId}-modificado-${new Date().toISOString().split("T")[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch { /* silent */ }
+    finally { setDownloading(false); }
+  };
+
+  const handlePDF = () => {
+    const content = `# ${modified.reportTitle} (Modificado)\n\n**Instrucción:** ${modified.instruction}\n\n**Datos:**\n\`\`\`json\n${JSON.stringify(modified.data, null, 2)}\n\`\`\``;
+    generateChatMessagePDF(content, empresa);
+  };
+
+  const handleSave = () => {
+    onSave(modified);
+    setSaved(true);
+  };
+
+  return (
+    <div
+      style={{
+        marginTop: 10,
+        border: "1px solid #D4E9CC",
+        borderRadius: 16,
+        overflow: "hidden",
+        backgroundColor: "#F7FBF5",
+        boxShadow: "0 2px 8px rgba(61,122,28,0.08)",
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "12px 16px",
+          backgroundColor: "#EBF5E6",
+          borderBottom: "1px solid #D4E9CC",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div
+            style={{
+              width: 28, height: 28, borderRadius: 8,
+              backgroundColor: "#1A3311",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <Sparkles size={14} color="#D4AD3C" />
+          </div>
+          <div>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "#1A3311", lineHeight: 1.2 }}>
+              {modified.reportTitle}
+            </p>
+            <p style={{ fontSize: 10, color: "#5A8A3A", lineHeight: 1.2 }}>Reporte modificado</p>
+          </div>
+        </div>
+        <span
+          style={{
+            fontSize: 10, fontWeight: 600,
+            backgroundColor: "#D4AD3C", color: "#1A1A1A",
+            padding: "2px 8px", borderRadius: 20,
+          }}
+        >
+          Via chat
+        </span>
+      </div>
+
+      {/* Instruction */}
+      {modified.instruction && (
+        <div style={{ padding: "10px 16px", borderBottom: "1px solid #E8F2E2" }}>
+          <p style={{ fontSize: 11, color: "#5A8A3A", margin: 0 }}>
+            <span style={{ fontWeight: 600 }}>Instrucción:</span>{" "}
+            <span style={{ fontStyle: "italic" }}>&ldquo;{modified.instruction}&rdquo;</span>
+          </p>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div style={{ display: "flex", gap: 8, padding: "10px 16px", flexWrap: "wrap" }}>
+        <button
+          onClick={() => onPreview(modified)}
+          style={{
+            display: "flex", alignItems: "center", gap: 5,
+            padding: "6px 12px", borderRadius: 8,
+            border: "1px solid #3D7A1C", backgroundColor: "#3D7A1C",
+            color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer",
+          }}
+        >
+          <Eye size={12} /> Ver cambios
+        </button>
+
+        <button
+          onClick={handleExcel}
+          disabled={downloading}
+          style={{
+            display: "flex", alignItems: "center", gap: 5,
+            padding: "6px 12px", borderRadius: 8,
+            border: "1px solid #D6D1C8", backgroundColor: "#FFFFFF",
+            color: "#3D7A1C", fontSize: 11, fontWeight: 600,
+            cursor: downloading ? "wait" : "pointer",
+          }}
+        >
+          <FileSpreadsheet size={12} /> {downloading ? "Generando…" : "Descargar Excel"}
+        </button>
+
+        <button
+          onClick={handlePDF}
+          style={{
+            display: "flex", alignItems: "center", gap: 5,
+            padding: "6px 12px", borderRadius: 8,
+            border: "1px solid #D6D1C8", backgroundColor: "#FFFFFF",
+            color: "#9B9488", fontSize: 11, fontWeight: 600, cursor: "pointer",
+          }}
+        >
+          <Download size={12} /> PDF
+        </button>
+
+        <button
+          onClick={handleSave}
+          disabled={saved}
+          style={{
+            display: "flex", alignItems: "center", gap: 5,
+            padding: "6px 12px", borderRadius: 8,
+            border: `1px solid ${saved ? "#D6D1C8" : "#B8922A"}`,
+            backgroundColor: saved ? "#F5F5F5" : "#FFF8EC",
+            color: saved ? "#9B9488" : "#B8922A",
+            fontSize: 11, fontWeight: 600,
+            cursor: saved ? "default" : "pointer",
+          }}
+        >
+          <Save size={12} /> {saved ? "✓ Guardado en Escenarios" : "Guardar en Escenarios"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Message bubble ───────────────────────────────────────────────────────────
 function MessageBubble({
   msg,
   isStreaming,
   empresa,
+  onSaveReport,
+  onPreviewReport,
 }: {
   msg: Message;
   isStreaming?: boolean;
   empresa?: string | null;
+  onSaveReport: (m: ModifiedReportData) => void;
+  onPreviewReport: (m: ModifiedReportData) => void;
 }) {
   const [downloading, setDownloading] = useState<"pdf" | "xlsx" | null>(null);
   const isUser = msg.role === "user";
   const isDone = !isStreaming && msg.role === "assistant" && msg.content.trim().length > 0;
 
   const handlePDF = () => {
-    generateChatMessagePDF(msg.content, empresa);
+    generateChatMessagePDF(msg.content, empresa ?? null);
   };
 
   const handleExcel = async () => {
@@ -157,9 +405,9 @@ function MessageBubble({
       });
       if (!res.ok) throw new Error("Error al generar Excel");
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
       a.download = `agroforma-chat-${new Date().toISOString().split("T")[0]}.xlsx`;
       document.body.appendChild(a);
       a.click();
@@ -184,7 +432,7 @@ function MessageBubble({
       <div style={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: "#1A3311", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#D4AD3C", flexShrink: 0, boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }}>
         AF
       </div>
-      <div style={{ maxWidth: "75%" }}>
+      <div style={{ maxWidth: "80%", minWidth: 0 }}>
         <div style={{ borderRadius: "18px 18px 18px 4px", backgroundColor: "#FFFFFF", border: "1px solid #E8E5DE", padding: "10px 16px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
           {isStreaming && msg.content === "" ? <TypingDots /> : <MarkdownContent text={msg.content} />}
           {isStreaming && msg.content !== "" && (
@@ -193,8 +441,18 @@ function MessageBubble({
           <style>{`@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}`}</style>
         </div>
 
-        {/* Download buttons — only for completed assistant messages */}
-        {isDone && (
+        {/* Modified report card */}
+        {msg.modifiedReport && !isStreaming && (
+          <ModifiedReportCard
+            modified={msg.modifiedReport}
+            empresa={empresa ?? null}
+            onSave={onSaveReport}
+            onPreview={onPreviewReport}
+          />
+        )}
+
+        {/* Download buttons — only for completed assistant messages without modified report */}
+        {isDone && !msg.modifiedReport && (
           <div style={{ display: "flex", gap: 6, marginTop: 5, paddingLeft: 4 }}>
             <button
               onClick={handlePDF}
@@ -226,11 +484,7 @@ function MessageBubble({
 
 // ─── Conversation panel ───────────────────────────────────────────────────────
 function ConversationPanel({
-  conversations,
-  activeId,
-  onSelect,
-  onNew,
-  onDelete,
+  conversations, activeId, onSelect, onNew, onDelete,
 }: {
   conversations: Conversation[];
   activeId: string | null;
@@ -239,11 +493,7 @@ function ConversationPanel({
   onDelete: (id: string) => void;
 }) {
   return (
-    <div
-      className="flex flex-col h-full shrink-0 border-r"
-      style={{ width: 220, backgroundColor: "#1A3311", borderColor: "#0D2508" }}
-    >
-      {/* New conversation button */}
+    <div className="flex flex-col h-full shrink-0 border-r" style={{ width: 220, backgroundColor: "#1A3311", borderColor: "#0D2508" }}>
       <div className="px-3 py-4 border-b" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
         <button
           onClick={onNew}
@@ -256,8 +506,6 @@ function ConversationPanel({
           Nueva conversación
         </button>
       </div>
-
-      {/* List */}
       <div className="flex-1 overflow-y-auto py-2">
         {conversations.length === 0 ? (
           <div className="px-4 py-8 text-center">
@@ -267,6 +515,7 @@ function ConversationPanel({
         ) : (
           [...conversations].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map((conv) => {
             const isActive = conv.id === activeId;
+            const hasModified = conv.messages.some((m) => m.modifiedReport);
             return (
               <div
                 key={conv.id}
@@ -277,14 +526,20 @@ function ConversationPanel({
                 onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLDivElement).style.backgroundColor = "transparent"; }}
               >
                 <div className="px-3 py-2.5 pr-8">
-                  <p className="text-xs font-medium truncate leading-snug" style={{ color: isActive ? "#FFFFFF" : "rgba(255,255,255,0.65)" }}>
-                    {conv.title}
-                  </p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <p className="text-xs font-medium truncate leading-snug" style={{ color: isActive ? "#FFFFFF" : "rgba(255,255,255,0.65)", flex: 1 }}>
+                      {conv.title}
+                    </p>
+                    {hasModified && (
+                      <span style={{ fontSize: 8, backgroundColor: "#D4AD3C", color: "#1A1A1A", borderRadius: 10, padding: "1px 4px", fontWeight: 700, flexShrink: 0 }}>
+                        MOD
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>
                     {timeAgo(conv.updatedAt)}
                   </p>
                 </div>
-                {/* Delete button */}
                 <button
                   onClick={(e) => { e.stopPropagation(); onDelete(conv.id); }}
                   className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded cursor-pointer"
@@ -300,8 +555,6 @@ function ConversationPanel({
           })
         )}
       </div>
-
-      {/* Footer */}
       <div className="px-4 py-3 border-t" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
         <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.25)" }}>
           {conversations.length} conversación{conversations.length !== 1 ? "es" : ""}
@@ -314,27 +567,32 @@ function ConversationPanel({
 // ─── Suggestions ──────────────────────────────────────────────────────────────
 const SUGGESTIONS = [
   "¿Cuál es la situación financiera de la empresa?",
-  "Comparame los resultados de este ejercicio con el anterior",
+  "Cambiá el precio de soja a 380 USD/tn y recalculá",
   "¿Qué cultivo generó más ingresos?",
-  "¿Cuáles son los principales gastos de producción?",
+  "Hacé una versión optimista con rindes +15%",
   "Calculá el ROE y ROA de la empresa",
-  "¿Cuál es el nivel de endeudamiento?",
+  "Recalculá todo con tipo de cambio 1.200",
 ];
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function ChatClient() {
-  const { fileStore } = useAppContext();
-  const [conversations,    setConversations]    = useState<Conversation[]>([]);
-  const [activeId,         setActiveId]         = useState<string | null>(null);
-  const [input,            setInput]            = useState("");
-  const [streaming,        setStreaming]        = useState(false);
-  const [analysisResult,   setAnalysisResult]   = useState<AnalysisResult | null>(null);
-  const [hydrated,         setHydrated]         = useState(false);
+  const { fileStore, empresaActivaId, generatedReports, setEscenarios, presentaciones, presentacionBlobMap } = useAppContext();
+
+  const [conversations,  setConversations]  = useState<Conversation[]>([]);
+  const [activeId,       setActiveId]       = useState<string | null>(null);
+  const [input,          setInput]          = useState("");
+  const [streaming,      setStreaming]      = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [hydrated,       setHydrated]       = useState(false);
+  const [previewReport,  setPreviewReport]  = useState<GeneratedReport | null>(null);
+
   const bottomRef   = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef    = useRef<AbortController | null>(null);
 
-  // ── Active conversation messages ──────────────────────────────────────────
+  const convKey   = empresaActivaId ? `agroforma_empresa_${empresaActivaId}_conversations` : "agroforma_conversations";
+  const activeKey = empresaActivaId ? `agroforma_empresa_${empresaActivaId}_active_conv`   : "agroforma_active_conv";
+
   const activeConv = conversations.find((c) => c.id === activeId) ?? null;
   const messages   = activeConv?.messages ?? [];
 
@@ -348,60 +606,97 @@ export default function ChatClient() {
     );
   }, [activeId]);
 
+  // Unused but kept for potential future use
+  void setMessages;
+
   // ── Load from localStorage ─────────────────────────────────────────────────
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("agroforma_conversations");
+      const saved = localStorage.getItem(convKey);
       if (saved) {
         const convs: Conversation[] = JSON.parse(saved);
         setConversations(convs);
         if (convs.length > 0) {
-          const lastId = localStorage.getItem("agroforma_active_conv");
-          const found = convs.find((c) => c.id === lastId);
+          const lastId = localStorage.getItem(activeKey);
+          const found  = convs.find((c) => c.id === lastId);
           setActiveId(found ? found.id : convs[convs.length - 1].id);
         }
+      } else {
+        setConversations([]);
+        setActiveId(null);
       }
-      const savedAnalysis = localStorage.getItem("agroforma_analysis");
+      const analysisKey = empresaActivaId
+        ? `agroforma_empresa_${empresaActivaId}_analysis`
+        : "agroforma_analysis";
+      const savedAnalysis = localStorage.getItem(analysisKey);
       if (savedAnalysis) setAnalysisResult(JSON.parse(savedAnalysis));
+      else setAnalysisResult(null);
     } catch { /* ignore */ }
     setHydrated(true);
-  }, []);
+  }, [empresaActivaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Persist ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem("agroforma_conversations", JSON.stringify(conversations));
-  }, [conversations, hydrated]);
+    localStorage.setItem(convKey, JSON.stringify(conversations));
+  }, [conversations, hydrated, convKey]);
 
   useEffect(() => {
     if (!hydrated || !activeId) return;
-    localStorage.setItem("agroforma_active_conv", activeId);
-  }, [activeId, hydrated]);
+    localStorage.setItem(activeKey, activeId);
+  }, [activeId, hydrated, activeKey]);
 
   // ── Auto-scroll ────────────────────────────────────────────────────────────
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // ── New conversation ───────────────────────────────────────────────────────
+  // ── Conversation management ────────────────────────────────────────────────
   const newConversation = useCallback(() => {
-    const id = crypto.randomUUID();
+    const id  = crypto.randomUUID();
     const now = new Date().toISOString();
     setConversations((prev) => [...prev, { id, title: "Nueva conversación", messages: [], createdAt: now, updatedAt: now }]);
     setActiveId(id);
     setInput("");
   }, []);
 
-  // ── Delete conversation ────────────────────────────────────────────────────
   const deleteConversation = useCallback((id: string) => {
     setConversations((prev) => {
       const next = prev.filter((c) => c.id !== id);
-      if (id === activeId) {
-        setActiveId(next.length > 0 ? next[next.length - 1].id : null);
-      }
+      if (id === activeId) setActiveId(next.length > 0 ? next[next.length - 1].id : null);
       return next;
     });
   }, [activeId]);
+
+  // ── Save modified report to history ───────────────────────────────────────
+  const handleSaveReport = useCallback((modified: ModifiedReportData) => {
+    const newReport: GeneratedReport = {
+      id:            `chat_${Date.now()}`,
+      reportId:      modified.reportId,
+      title:         `${modified.reportTitle} (via chat)`,
+      generatedAt:   new Date().toISOString(),
+      downloadPath:  `/api/reportes/${modified.reportId}/download`,
+      data:          modified.data,
+      chatModified:  true,
+      chatInstruction: modified.instruction,
+    };
+    setEscenarios((prev) => [...prev, newReport]);
+  }, [setEscenarios]);
+
+  // ── Preview modified report ────────────────────────────────────────────────
+  const handlePreviewReport = useCallback((modified: ModifiedReportData) => {
+    const fakeReport: GeneratedReport = {
+      id:           "chat-preview",
+      reportId:     modified.reportId,
+      title:        `${modified.reportTitle} (Modificado)`,
+      generatedAt:  new Date().toISOString(),
+      downloadPath: `/api/reportes/${modified.reportId}/download`,
+      data:         modified.data,
+      chatModified:    true,
+      chatInstruction: modified.instruction,
+    };
+    setPreviewReport(fakeReport);
+  }, []);
 
   // ── Send message ───────────────────────────────────────────────────────────
   const empresa = analysisResult?.empresa ?? null;
@@ -410,10 +705,9 @@ export default function ChatClient() {
     const trimmed = text.trim();
     if (!trimmed || streaming) return;
 
-    // If no active conversation, create one
     let convId = activeId;
     if (!convId) {
-      const id = crypto.randomUUID();
+      const id  = crypto.randomUUID();
       const now = new Date().toISOString();
       const title = makeTitle(trimmed);
       setConversations((prev) => [...prev, { id, title, messages: [], createdAt: now, updatedAt: now }]);
@@ -423,7 +717,6 @@ export default function ChatClient() {
 
     const userMsg: Message = { role: "user", content: trimmed };
 
-    // Update title if first message
     setConversations((prev) =>
       prev.map((c) => {
         if (c.id !== convId) return c;
@@ -446,13 +739,35 @@ export default function ChatClient() {
       const fd = new FormData();
       fd.append("messages", JSON.stringify(historyForSend));
       if (analysisResult) fd.append("analysis", JSON.stringify(analysisResult));
+      // Include generated reports for modification context (send data but keep size manageable)
+      if (generatedReports.length > 0) {
+        fd.append("reports", JSON.stringify(generatedReports.slice(-5))); // last 5 reports
+      }
       fileStore.forEach((f) => fd.append("files", f));
+
+      // Include presentaciones summaries as text context
+      if (presentaciones.length > 0) {
+        const analyzed = presentaciones.filter((p) => p.analisis);
+        if (analyzed.length > 0) {
+          const ctx = analyzed
+            .map((p) => `=== ${p.nombre} ===\n${p.analisis}`)
+            .join("\n\n");
+          fd.append("presentaciones_context", ctx);
+        }
+        // Include blob files for unanalyzed PDFs
+        analyzed.forEach((p) => {
+          const blob = presentacionBlobMap[p.id];
+          if (blob && p.tipo === "pdf" && !p.analisis) {
+            fd.append("files", blob);
+          }
+        });
+      }
 
       abortRef.current = new AbortController();
       const res = await fetch("/api/chat", { method: "POST", body: fd, signal: abortRef.current.signal });
       if (!res.ok || !res.body) throw new Error("Error al conectar con el asistente");
 
-      const reader = res.body.getReader();
+      const reader  = res.body.getReader();
       const decoder = new TextDecoder();
       let accumulated = "";
 
@@ -460,16 +775,39 @@ export default function ChatClient() {
         const { done, value } = await reader.read();
         if (done) break;
         accumulated += decoder.decode(value, { stream: true });
-        const acc = accumulated;
+        // During streaming, show raw text (markers will be cleaned up after)
+        const displayText = accumulated.includes("REPORTE_MODIFICADO_START")
+          ? (accumulated.match(/RESPUESTA_TEXTO:\s*([\s\S]*?)(?=REPORT_ID:|REPORTE_MODIFICADO_START)/) ?? [])[1]?.trim()
+            ?? "Generando reporte modificado…"
+          : accumulated;
+
         setConversations((prev) =>
           prev.map((c) => {
             if (c.id !== convId) return c;
             const msgs = [...c.messages];
-            msgs[msgs.length - 1] = { role: "assistant", content: acc };
+            msgs[msgs.length - 1] = { role: "assistant", content: displayText };
             return { ...c, messages: msgs, updatedAt: new Date().toISOString() };
           })
         );
       }
+
+      // After streaming: parse for modified report
+      const { cleanText, modifiedReport } = parseModifiedReport(accumulated);
+
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id !== convId) return c;
+          const msgs = [...c.messages];
+          msgs[msgs.length - 1] = {
+            role: "assistant",
+            content: modifiedReport
+              ? (cleanText || "Reporte modificado correctamente. Ver detalles abajo.")
+              : (cleanText || accumulated),
+            ...(modifiedReport ? { modifiedReport } : {}),
+          };
+          return { ...c, messages: msgs, updatedAt: new Date().toISOString() };
+        })
+      );
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       const errMsg = "Hubo un error al conectar con el asistente. Intentá de nuevo.";
@@ -485,155 +823,171 @@ export default function ChatClient() {
       setStreaming(false);
       abortRef.current = null;
     }
-  }, [messages, streaming, fileStore, analysisResult, activeId]);
+  }, [messages, streaming, fileStore, analysisResult, generatedReports, activeId, presentaciones, presentacionBlobMap]);
 
-  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); sendMessage(input); };
+  const handleSubmit  = (e: React.FormEvent) => { e.preventDefault(); sendMessage(input); };
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
   };
-
-  const clearCurrent = () => {
+  const clearCurrent  = () => {
     if (!activeConv) return;
     if (confirm("¿Borrar esta conversación?")) deleteConversation(activeConv.id);
   };
 
   const isEmpty = messages.length === 0;
+  const reportsCount = generatedReports.length;
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ backgroundColor: "#F9F8F4" }}>
-      <Sidebar />
+    <>
+      <div className="flex h-screen overflow-hidden" style={{ backgroundColor: "#F9F8F4" }}>
+        <Sidebar />
 
-      {/* ── Conversation panel ── */}
-      <ConversationPanel
-        conversations={conversations}
-        activeId={activeId}
-        onSelect={setActiveId}
-        onNew={newConversation}
-        onDelete={deleteConversation}
-      />
+        <ConversationPanel
+          conversations={conversations}
+          activeId={activeId}
+          onSelect={setActiveId}
+          onNew={newConversation}
+          onDelete={deleteConversation}
+        />
 
-      {/* ── Chat area ── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Chat area */}
+        <div className="flex-1 flex flex-col overflow-hidden">
 
-        {/* Header */}
-        <header
-          className="shrink-0 flex items-center justify-between px-8 py-5 border-b bg-white/80 backdrop-blur-sm"
-          style={{ borderColor: "#E8E5DE" }}
-        >
-          <div>
-            <h1 className="text-xl font-semibold" style={{ color: "#1A1A1A" }}>
-              {activeConv?.title ?? "Asistente AgroForma"}
-            </h1>
-            <p className="text-xs mt-0.5" style={{ color: "#9B9488" }}>
-              {empresa
-                ? `${empresa}${analysisResult?.cuit ? ` · CUIT ${analysisResult.cuit}` : ""}`
-                : "Subí documentos para que el asistente tenga contexto de tu empresa"}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            {fileStore.length > 0 && (
-              <span className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full" style={{ backgroundColor: "#EBF3E8", color: "#3D7A1C" }}>
-                <Upload size={12} />
-                {fileStore.length} archivo{fileStore.length !== 1 ? "s" : ""} en memoria
-              </span>
-            )}
-            {activeConv && activeConv.messages.length > 0 && (
-              <button
-                onClick={clearCurrent}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer"
-                style={{ color: "#9B9488", border: "1px solid #E8E5DE" }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "#C0392B")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "#9B9488")}
-              >
-                <Trash2 size={13} />
-                Eliminar
-              </button>
-            )}
-          </div>
-        </header>
-
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-8 py-6">
-          <div style={{ maxWidth: 780, margin: "0 auto" }}>
-
-            {isEmpty && (
-              <div className="flex flex-col items-center gap-6 py-12">
-                <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ backgroundColor: "#1A3311" }}>
-                  <span style={{ color: "#D4AD3C", fontWeight: 700, fontSize: 18 }}>AF</span>
-                </div>
-                <div className="text-center">
-                  <h2 className="font-semibold text-base mb-2" style={{ color: "#1A1A1A" }}>¿En qué puedo ayudarte hoy?</h2>
-                  <p className="text-sm max-w-md" style={{ color: "#9B9488" }}>
-                    {fileStore.length > 0
-                      ? `Tengo acceso a ${fileStore.length} documento${fileStore.length !== 1 ? "s" : ""}. Podés preguntarme lo que necesites.`
-                      : "Podés hacerme preguntas generales sobre el agro o subir documentos para análisis específicos."}
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-2 w-full max-w-xl">
-                  {SUGGESTIONS.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => sendMessage(s)}
-                      className="text-left px-4 py-3 rounded-xl text-xs border transition-colors cursor-pointer"
-                      style={{ backgroundColor: "#FFFFFF", borderColor: "#E8E5DE", color: "#1A1A1A" }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#3D7A1C"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F0F7EC"; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#E8E5DE"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#FFFFFF"; }}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {messages.map((msg, i) => (
-              <MessageBubble
-                key={i}
-                msg={msg}
-                isStreaming={streaming && i === messages.length - 1 && msg.role === "assistant"}
-                empresa={empresa}
-              />
-            ))}
-
-            <div ref={bottomRef} />
-          </div>
-        </div>
-
-        {/* Input */}
-        <div className="shrink-0 px-8 py-4 border-t" style={{ backgroundColor: "#FFFFFF", borderColor: "#E8E5DE" }}>
-          <form onSubmit={handleSubmit} style={{ maxWidth: 780, margin: "0 auto" }}>
-            <div
-              className="flex items-end gap-3 rounded-2xl border px-4 py-3 transition-colors"
-              style={{ borderColor: "#D6D1C8", backgroundColor: "#FAFAF8" }}
-              onFocusCapture={(e) => (e.currentTarget.style.borderColor = "#3D7A1C")}
-              onBlurCapture={(e) => (e.currentTarget.style.borderColor = "#D6D1C8")}
-            >
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px"; }}
-                onKeyDown={handleKeyDown}
-                placeholder="Preguntá lo que necesites… (Enter para enviar, Shift+Enter para nueva línea)"
-                disabled={streaming}
-                rows={1}
-                style={{ flex: 1, resize: "none", background: "transparent", border: "none", outline: "none", fontSize: 13, lineHeight: 1.6, color: "#1A1A1A", fontFamily: "var(--font-plus-jakarta)", overflowY: "hidden", minHeight: 24, maxHeight: 160 }}
-              />
-              <button
-                type="submit"
-                disabled={!input.trim() || streaming}
-                className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer"
-                style={{ backgroundColor: input.trim() && !streaming ? "#3D7A1C" : "#D6D1C8", color: "#fff" }}
-              >
-                <Send size={15} />
-              </button>
+          {/* Header */}
+          <header className="shrink-0 flex items-center justify-between px-8 py-5 border-b bg-white/80 backdrop-blur-sm" style={{ borderColor: "#E8E5DE" }}>
+            <div>
+              <h1 className="text-xl font-semibold" style={{ color: "#1A1A1A" }}>
+                {activeConv?.title ?? "Asistente AgroForma"}
+              </h1>
+              <p className="text-xs mt-0.5" style={{ color: "#9B9488" }}>
+                {empresa
+                  ? `${empresa}${analysisResult?.cuit ? ` · CUIT ${analysisResult.cuit}` : ""}`
+                  : "Subí documentos para que el asistente tenga contexto de tu empresa"}
+              </p>
             </div>
-            <p className="text-center text-xs mt-2" style={{ color: "#B0A99F" }}>
-              AgroForma puede cometer errores. Verificá la información importante.
-            </p>
-          </form>
-        </div>
+            <div className="flex items-center gap-3">
+              {fileStore.length > 0 && (
+                <span className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full" style={{ backgroundColor: "#EBF3E8", color: "#3D7A1C" }}>
+                  <Upload size={12} />
+                  {fileStore.length} archivo{fileStore.length !== 1 ? "s" : ""}
+                </span>
+              )}
+              {reportsCount > 0 && (
+                <span className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full" style={{ backgroundColor: "#FFF8EC", color: "#B8922A" }}>
+                  <FileText size={12} />
+                  {reportsCount} reporte{reportsCount !== 1 ? "s" : ""} disponible{reportsCount !== 1 ? "s" : ""}
+                </span>
+              )}
+              {activeConv && activeConv.messages.length > 0 && (
+                <button
+                  onClick={clearCurrent}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                  style={{ color: "#9B9488", border: "1px solid #E8E5DE" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = "#C0392B")}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "#9B9488")}
+                >
+                  <Trash2 size={13} />
+                  Eliminar
+                </button>
+              )}
+            </div>
+          </header>
 
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-8 py-6">
+            <div style={{ maxWidth: 780, margin: "0 auto" }}>
+
+              {isEmpty && (
+                <div className="flex flex-col items-center gap-6 py-12">
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ backgroundColor: "#1A3311" }}>
+                    <span style={{ color: "#D4AD3C", fontWeight: 700, fontSize: 18 }}>AF</span>
+                  </div>
+                  <div className="text-center">
+                    <h2 className="font-semibold text-base mb-2" style={{ color: "#1A1A1A" }}>¿En qué puedo ayudarte hoy?</h2>
+                    <p className="text-sm max-w-md" style={{ color: "#9B9488" }}>
+                      {reportsCount > 0
+                        ? `Tengo acceso a ${reportsCount} reporte${reportsCount !== 1 ? "s" : ""} generado${reportsCount !== 1 ? "s" : ""}. Podés pedirme modificaciones, recálculos o análisis.`
+                        : fileStore.length > 0
+                        ? `Tengo acceso a ${fileStore.length} documento${fileStore.length !== 1 ? "s" : ""}. Podés preguntarme lo que necesités.`
+                        : "Podés hacerme preguntas generales sobre el agro o subir documentos para análisis específicos."}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 w-full max-w-xl">
+                    {SUGGESTIONS.map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => sendMessage(s)}
+                        className="text-left px-4 py-3 rounded-xl text-xs border transition-colors cursor-pointer"
+                        style={{ backgroundColor: "#FFFFFF", borderColor: "#E8E5DE", color: "#1A1A1A" }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#3D7A1C"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F0F7EC"; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#E8E5DE"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#FFFFFF"; }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {messages.map((msg, i) => (
+                <MessageBubble
+                  key={i}
+                  msg={msg}
+                  isStreaming={streaming && i === messages.length - 1 && msg.role === "assistant"}
+                  empresa={empresa}
+                  onSaveReport={handleSaveReport}
+                  onPreviewReport={handlePreviewReport}
+                />
+              ))}
+
+              <div ref={bottomRef} />
+            </div>
+          </div>
+
+          {/* Input */}
+          <div className="shrink-0 px-8 py-4 border-t" style={{ backgroundColor: "#FFFFFF", borderColor: "#E8E5DE" }}>
+            <form onSubmit={handleSubmit} style={{ maxWidth: 780, margin: "0 auto" }}>
+              <div
+                className="flex items-end gap-3 rounded-2xl border px-4 py-3 transition-colors"
+                style={{ borderColor: "#D6D1C8", backgroundColor: "#FAFAF8" }}
+                onFocusCapture={(e) => (e.currentTarget.style.borderColor = "#3D7A1C")}
+                onBlurCapture={(e)  => (e.currentTarget.style.borderColor = "#D6D1C8")}
+              >
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px"; }}
+                  onKeyDown={handleKeyDown}
+                  placeholder={reportsCount > 0 ? "Preguntá o pedí modificar un reporte… (Enter para enviar)" : "Preguntá lo que necesités… (Enter para enviar, Shift+Enter para nueva línea)"}
+                  disabled={streaming}
+                  rows={1}
+                  style={{ flex: 1, resize: "none", background: "transparent", border: "none", outline: "none", fontSize: 13, lineHeight: 1.6, color: "#1A1A1A", fontFamily: "var(--font-plus-jakarta)", overflowY: "hidden", minHeight: 24, maxHeight: 160 }}
+                />
+                <button
+                  type="submit"
+                  disabled={!input.trim() || streaming}
+                  className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer"
+                  style={{ backgroundColor: input.trim() && !streaming ? "#3D7A1C" : "#D6D1C8", color: "#fff" }}
+                >
+                  <Send size={15} />
+                </button>
+              </div>
+              <p className="text-center text-xs mt-2" style={{ color: "#B0A99F" }}>
+                AgroForma puede cometer errores. Verificá la información importante.
+              </p>
+            </form>
+          </div>
+
+        </div>
       </div>
-    </div>
+
+      {/* Report preview modal */}
+      {previewReport && (
+        <ReportPreviewModal
+          report={previewReport}
+          onClose={() => setPreviewReport(null)}
+        />
+      )}
+    </>
   );
 }

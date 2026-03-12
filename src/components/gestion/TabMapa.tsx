@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
+import "leaflet/dist/leaflet.css";
 import { useAppContext } from "@/context/AppContext";
 import {
   ArchivoPlano,
@@ -11,6 +12,7 @@ import {
   CultivoDetectado,
   CULTIVOS_LISTA,
 } from "@/types/gestion";
+import CampoDiagrama, { CampoDiagramaMini } from "./CampoDiagrama";
 import type { MapMarker } from "./LeafletMap";
 import {
   Upload,
@@ -218,19 +220,99 @@ function VistaPrevia({
 // ─── Datos extraídos panel ────────────────────────────────────────────────────
 function DatosExtraidos({
   datos,
+  blob,
   onImportarCampo,
   onImportarPlanSiembra,
 }: {
   datos: PlanoAnalizado;
+  blob?: File;
   onImportarCampo: (datos: PlanoAnalizado) => void;
   onImportarPlanSiembra: (datos: PlanoAnalizado) => void;
 }) {
   const [lotesOpen, setLotesOpen] = useState(true);
-  const coords = parseCoords(datos.ubicacion?.coordenadas);
+  const [pdfUrl,    setPdfUrl]    = useState<string | null>(null);
+
+  useEffect(() => {
+    if (blob?.type === "application/pdf") {
+      const url = URL.createObjectURL(blob);
+      setPdfUrl(url);
+      return () => URL.revokeObjectURL(url);
+    }
+  }, [blob]);
+
+  const coords     = parseCoords(datos.ubicacion?.coordenadas);
+  const diagrama   = datos.diagrama;
+  const hasDiagram = diagrama && diagrama.lotes.length > 0;
+
+  // ── Summary card ────────────────────────────────────────────────────────────
+  const SummaryCard = () => (
+    <div
+      className="rounded-xl border overflow-hidden"
+      style={{ borderColor: "#C8E6C0", backgroundColor: "#F5FAF3" }}
+    >
+      <div className="px-5 py-4 border-b flex items-start justify-between gap-4" style={{ borderColor: "#D8EDD4" }}>
+        <div className="flex-1 min-w-0">
+          <p className="text-base font-bold truncate" style={{ color: "#1A1A1A" }}>
+            {datos.campo ?? "Campo sin nombre"}
+          </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
+            {datos.superficie_total && (
+              <span className="text-xs" style={{ color: "#3D7A1C" }}>
+                <strong>{datos.superficie_total.toLocaleString("es-AR")}</strong> ha totales
+              </span>
+            )}
+            {datos.superficie_siembra && (
+              <span className="text-xs" style={{ color: "#6B6560" }}>
+                {datos.superficie_siembra.toLocaleString("es-AR")} ha siembra
+              </span>
+            )}
+            {(datos.lotes?.length ?? 0) > 0 && (
+              <span className="text-xs" style={{ color: "#6B6560" }}>
+                {datos.lotes.length} lote{datos.lotes.length !== 1 ? "s" : ""}
+              </span>
+            )}
+            {(datos.ubicacion?.localidad || datos.ubicacion?.provincia) && (
+              <span className="text-xs" style={{ color: "#9B9488" }}>
+                <MapPin size={10} className="inline mr-0.5" />
+                {[datos.ubicacion.localidad, datos.ubicacion.provincia].filter(Boolean).join(", ")}
+              </span>
+            )}
+            {datos.campaña && (
+              <span className="text-xs" style={{ color: "#9B9488" }}>Campaña {datos.campaña}</span>
+            )}
+          </div>
+        </div>
+        {/* Mini diagram */}
+        {hasDiagram && (
+          <div className="shrink-0 p-2 bg-white rounded-lg border" style={{ borderColor: "#D8EDD4" }}>
+            <CampoDiagramaMini diagrama={diagrama} />
+          </div>
+        )}
+      </div>
+
+      {/* Cultivos row */}
+      {(datos.cultivos_detectados?.length ?? 0) > 0 && (
+        <div className="px-5 py-3 flex flex-wrap gap-2">
+          {datos.cultivos_detectados.map((c: CultivoDetectado, i: number) => (
+            <span
+              key={i}
+              className="text-xs font-semibold px-2.5 py-1 rounded-full"
+              style={{ backgroundColor: "#FFFFFF", border: "1px solid #C8E6C0", color: "#3D7A1C" }}
+            >
+              {c.cultivo} · {c.hectareas?.toLocaleString("es-AR") ?? "—"} ha
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="space-y-4 mt-4">
-      {/* Action buttons */}
+      {/* 1. Summary card */}
+      <SummaryCard />
+
+      {/* 2. Action buttons */}
       <div className="flex flex-wrap gap-2">
         <button
           onClick={() => onImportarCampo(datos)}
@@ -250,48 +332,88 @@ function DatosExtraidos({
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Campo info */}
-        <div className="rounded-xl border p-4 space-y-2" style={{ borderColor: "#E8E5DE", backgroundColor: "#FFFFFF" }}>
-          <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#9B9488" }}>Campo</p>
-          <InfoRow label="Nombre"         value={datos.campo} />
-          <InfoRow label="Propietario"    value={datos.propietario} />
-          <InfoRow label="Localidad"      value={datos.ubicacion?.localidad} />
-          <InfoRow label="Provincia"      value={datos.ubicacion?.provincia} />
-          <InfoRow label="Coordenadas"    value={datos.ubicacion?.coordenadas} />
-          <InfoRow label="Sup. total"     value={datos.superficie_total ? `${datos.superficie_total} ha` : null} />
-          <InfoRow label="Sup. siembra"   value={datos.superficie_siembra ? `${datos.superficie_siembra} ha` : null} />
-          <InfoRow label="Campaña"        value={datos.campaña} />
-          {(datos.infraestructura?.length ?? 0) > 0 && (
-            <InfoRow label="Infraestructura" value={datos.infraestructura.join(", ")} />
+      {/* 3. PDF preview + Diagram side by side */}
+      {(pdfUrl || hasDiagram) && (
+        <div
+          className="grid gap-4"
+          style={{ gridTemplateColumns: pdfUrl && hasDiagram ? "1fr 1fr" : "1fr" }}
+        >
+          {pdfUrl && (
+            <div
+              className="rounded-xl overflow-hidden border"
+              style={{ borderColor: "#E8E5DE", height: 520 }}
+            >
+              <div className="px-3 py-2 border-b text-xs font-semibold" style={{ borderColor: "#F0EDE6", color: "#9B9488", backgroundColor: "#FAFAF8" }}>
+                Plano original
+              </div>
+              <iframe
+                src={pdfUrl}
+                style={{ width: "100%", height: "calc(100% - 33px)", border: "none" }}
+                title="Plano"
+              />
+            </div>
+          )}
+          {hasDiagram && (
+            <div
+              className="rounded-xl border p-4 overflow-auto"
+              style={{ borderColor: "#E8E5DE", backgroundColor: "#FFFFFF", maxHeight: 520 }}
+            >
+              <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#9B9488" }}>
+                Diagrama de lotes
+              </p>
+              <CampoDiagrama
+                diagrama={diagrama}
+                campNombre={null}
+                superficieTotal={datos.superficie_total}
+              />
+            </div>
           )}
         </div>
+      )}
 
-        {/* Cultivos */}
-        {(datos.cultivos_detectados?.length ?? 0) > 0 && (
-          <div className="rounded-xl border p-4" style={{ borderColor: "#E8E5DE", backgroundColor: "#FFFFFF" }}>
-            <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#9B9488" }}>Cultivos detectados</p>
-            <table className="w-full text-xs">
-              <thead>
-                <tr>
-                  <th className="text-left py-1 font-semibold" style={{ color: "#9B9488" }}>Cultivo</th>
-                  <th className="text-right py-1 font-semibold" style={{ color: "#9B9488" }}>Hectáreas</th>
-                </tr>
-              </thead>
-              <tbody>
-                {datos.cultivos_detectados.map((c: CultivoDetectado, i: number) => (
-                  <tr key={i} style={{ borderTop: "1px solid #F0EDE6" }}>
-                    <td className="py-2 font-medium" style={{ color: "#1A1A1A" }}>{c.cultivo}</td>
-                    <td className="py-2 text-right font-semibold" style={{ color: "#3D7A1C" }}>{c.hectareas?.toLocaleString("es-AR") ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* 4. Campo info + Cultivos (shown when no diagram) */}
+      {!hasDiagram && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="rounded-xl border p-4 space-y-2" style={{ borderColor: "#E8E5DE", backgroundColor: "#FFFFFF" }}>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#9B9488" }}>Campo</p>
+            <InfoRow label="Nombre"          value={datos.campo} />
+            <InfoRow label="Propietario"     value={datos.propietario} />
+            <InfoRow label="Localidad"       value={datos.ubicacion?.localidad} />
+            <InfoRow label="Provincia"       value={datos.ubicacion?.provincia} />
+            <InfoRow label="Coordenadas"     value={datos.ubicacion?.coordenadas} />
+            <InfoRow label="Sup. total"      value={datos.superficie_total ? `${datos.superficie_total} ha` : null} />
+            <InfoRow label="Sup. siembra"    value={datos.superficie_siembra ? `${datos.superficie_siembra} ha` : null} />
+            <InfoRow label="Campaña"         value={datos.campaña} />
+            {(datos.infraestructura?.length ?? 0) > 0 && (
+              <InfoRow label="Infraestructura" value={datos.infraestructura.join(", ")} />
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Ambientes */}
+          {(datos.cultivos_detectados?.length ?? 0) > 0 && (
+            <div className="rounded-xl border p-4" style={{ borderColor: "#E8E5DE", backgroundColor: "#FFFFFF" }}>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#9B9488" }}>Cultivos detectados</p>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr>
+                    <th className="text-left py-1 font-semibold" style={{ color: "#9B9488" }}>Cultivo</th>
+                    <th className="text-right py-1 font-semibold" style={{ color: "#9B9488" }}>Hectáreas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {datos.cultivos_detectados.map((c: CultivoDetectado, i: number) => (
+                    <tr key={i} style={{ borderTop: "1px solid #F0EDE6" }}>
+                      <td className="py-2 font-medium" style={{ color: "#1A1A1A" }}>{c.cultivo}</td>
+                      <td className="py-2 text-right font-semibold" style={{ color: "#3D7A1C" }}>{c.hectareas?.toLocaleString("es-AR") ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 5. Ambientes */}
       {(datos.ambientes?.detalle?.length ?? 0) > 0 && (
         <div className="rounded-xl border p-4" style={{ borderColor: "#E8E5DE", backgroundColor: "#FFFFFF" }}>
           <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#9B9488" }}>Ambientes de suelo</p>
@@ -320,8 +442,8 @@ function DatosExtraidos({
         </div>
       )}
 
-      {/* Lotes */}
-      {(datos.lotes?.length ?? 0) > 0 && (
+      {/* 6. Lotes table (when diagram exists, this is redundant — collapse it) */}
+      {!hasDiagram && (datos.lotes?.length ?? 0) > 0 && (
         <div className="rounded-xl border overflow-hidden" style={{ borderColor: "#E8E5DE", backgroundColor: "#FFFFFF" }}>
           <button
             onClick={() => setLotesOpen((v) => !v)}
@@ -361,7 +483,7 @@ function DatosExtraidos({
         </div>
       )}
 
-      {/* Per-plano mini map */}
+      {/* 7. Leaflet map — always shown if coords available */}
       {coords ? (
         <div className="rounded-xl overflow-hidden border" style={{ borderColor: "#E8E5DE", height: 400 }}>
           <LeafletMap markers={[{ lat: coords[0], lng: coords[1], label: datos.campo ?? "Campo" }]} />
@@ -675,6 +797,7 @@ export default function TabMapa() {
                   <div className="px-5 pb-5 border-t" style={{ borderColor: "#F0EDE6" }}>
                     <DatosExtraidos
                       datos={archivo.datos}
+                      blob={planoBlobMap[archivo.id]}
                       onImportarCampo={handleImportarCampo}
                       onImportarPlanSiembra={handleImportarPlanSiembra}
                     />

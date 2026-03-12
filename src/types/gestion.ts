@@ -134,6 +134,25 @@ export type CultivoDetectado = {
   hectareas: number;
 };
 
+export type DiagramaLote = {
+  nombre: string;
+  superficie: number;
+  cultivo: string | null;
+  ambiente: string | null;
+  porcentaje_del_total: number;
+};
+
+export type DiagramaLeyenda = {
+  label: string;
+  color: string;
+};
+
+export type DiagramaPlano = {
+  tipo: "cultivos" | "ambientes";
+  lotes: DiagramaLote[];
+  leyenda: DiagramaLeyenda[];
+};
+
 export type PlanoAnalizado = {
   campo: string | null;
   propietario: string | null;
@@ -153,6 +172,7 @@ export type PlanoAnalizado = {
   infraestructura: string[];
   fuente: string | null;
   campaña: string | null;
+  diagrama?: DiagramaPlano | null;
 };
 
 export type ArchivoPlano = {

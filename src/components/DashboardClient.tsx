@@ -3,13 +3,14 @@
 import { useState, useRef, useEffect } from "react";
 import { useAppContext } from "@/context/AppContext";
 import { ExtractedDocData } from "@/types/analysis";
-import { Upload, Loader2, Bell } from "lucide-react";
+import { Upload, Loader2, Bell, Building2 } from "lucide-react";
 import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import KpiCard from "@/components/dashboard/KpiCard";
 import DocumentAnalysis from "@/components/dashboard/DocumentAnalysis";
 import UploadModal from "@/components/UploadModal";
 import ReportPreviewModal from "@/components/ReportPreviewModal";
+import NuevaEmpresaModal from "@/components/NuevaEmpresaModal";
 import { UploadedDoc } from "@/types/document";
 import { GeneratedReport } from "@/types/report";
 
@@ -100,9 +101,11 @@ export default function DashboardClient() {
     analysisResult, setAnalysisResult,
     extractedDocsData, setExtractedDocsData,
     campos, planSiembra, campanaActual,
+    empresas,
   } = useAppContext();
 
   const [modalOpen,       setModalOpen]       = useState(false);
+  const [nuevaEmpresaOpen, setNuevaEmpresaOpen] = useState(false);
   const [analyzing,       setAnalyzing]       = useState(false);
   const [extractProgress, setExtractProgress] = useState<{ current: number; total: number } | null>(null);
   const [generating,      setGenerating]      = useState<string | null>(null);
@@ -424,7 +427,21 @@ export default function DashboardClient() {
             </button>
           </header>
 
-          <main className="px-8 py-7 space-y-8 max-w-6xl">
+          {/* Empty state: no empresas */}
+          {empresas.length === 0 && (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center max-w-sm py-20">
+                <Building2 size={48} className="mx-auto mb-4 text-gray-300" />
+                <h2 className="text-xl font-semibold text-gray-700 mb-2">Bienvenido a AgroForma</h2>
+                <p className="text-gray-500 mb-6">Creá tu primera empresa para comenzar a cargar documentos y generar reportes.</p>
+                <button onClick={() => setNuevaEmpresaOpen(true)} className="px-6 py-3 rounded-xl font-semibold text-white" style={{ backgroundColor: "#1A3311" }}>
+                  Crear mi primera empresa
+                </button>
+              </div>
+            </div>
+          )}
+
+          <main className="px-8 py-7 space-y-8 max-w-6xl" style={{ display: empresas.length === 0 ? "none" : undefined }}>
 
             {/* Error banner */}
             {genError && (
@@ -547,6 +564,11 @@ export default function DashboardClient() {
       {previewReport && (
         <ReportPreviewModal report={previewReport} onClose={() => setPreviewReport(null)} />
       )}
+
+      <NuevaEmpresaModal
+        open={nuevaEmpresaOpen}
+        onClose={() => setNuevaEmpresaOpen(false)}
+      />
     </>
   );
 }

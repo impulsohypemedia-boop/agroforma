@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Upload, FolderOpen } from "lucide-react";
+import { Upload, FolderOpen, Eye } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import UploadModal from "@/components/UploadModal";
+import DocPreviewModal from "@/components/DocPreviewModal";
 import { useAppContext } from "@/context/AppContext";
 import { UploadedDoc, DocType } from "@/types/document";
 
@@ -27,12 +28,13 @@ function formatSize(bytes: number): string {
 
 export default function DocsClient() {
   const { fileStore, setFileStore, documents, setDocuments, setAnalysisResult, analysisResult } = useAppContext();
-  const [modalOpen,  setModalOpen]  = useState(false);
-  const [analyzing,  setAnalyzing]  = useState(false);
-  const [error,      setError]      = useState<string | null>(null);
-  const [search,     setSearch]     = useState("");
-  const [typeFilter, setTypeFilter] = useState<string>("Todos");
-  const [catFilter,  setCatFilter]  = useState<string>("Todos");
+  const [modalOpen,   setModalOpen]   = useState(false);
+  const [analyzing,   setAnalyzing]   = useState(false);
+  const [error,       setError]       = useState<string | null>(null);
+  const [search,      setSearch]      = useState("");
+  const [typeFilter,  setTypeFilter]  = useState<string>("Todos");
+  const [catFilter,   setCatFilter]   = useState<string>("Todos");
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
 
   const runAnalysis = async (files: File[]) => {
     setAnalyzing(true);
@@ -239,7 +241,7 @@ export default function DocsClient() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr style={{ backgroundColor: "#FAFAF8" }}>
-                        {["Nombre", "Tipo", "Tamaño", "Fecha de carga", "Estado"].map((col) => (
+                        {["Nombre", "Tipo", "Tamaño", "Fecha de carga", "Estado", ""].map((col) => (
                           <th
                             key={col}
                             className="text-left px-5 py-3 text-xs font-semibold uppercase tracking-wider"
@@ -321,6 +323,21 @@ export default function DocsClient() {
                                   Cargado
                                 </span>
                               </td>
+                              <td className="px-5 py-3">
+                                {(() => {
+                                  const f = fileStore.find((x) => x.name === doc.name);
+                                  if (!f) return null;
+                                  return (
+                                    <button
+                                      onClick={() => setPreviewFile(f)}
+                                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border cursor-pointer hover:bg-gray-50 transition-colors"
+                                      style={{ borderColor: "#D6D1C8", color: "#1A1A1A" }}
+                                    >
+                                      <Eye size={12} /> Ver
+                                    </button>
+                                  );
+                                })()}
+                              </td>
                             </tr>
                           );
                         });
@@ -336,6 +353,10 @@ export default function DocsClient() {
 
       {modalOpen && (
         <UploadModal onClose={() => setModalOpen(false)} onConfirm={handleConfirm} />
+      )}
+
+      {previewFile && (
+        <DocPreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />
       )}
     </>
   );

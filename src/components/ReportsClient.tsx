@@ -205,8 +205,15 @@ export default function ReportsClient() {
                           <tr key={report.id} style={{ borderTop: i > 0 ? "1px solid #F0EDE6" : undefined }}>
                             <td className="px-5 py-4">
                               <div className="flex items-center gap-3">
-                                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: "#3D7A1C" }} />
-                                <p className="font-medium text-sm" style={{ color: "#1A1A1A" }}>{REPORT_LABELS[report.reportId] ?? report.title}</p>
+                                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: report.chatModified ? "#B8922A" : "#3D7A1C" }} />
+                                <div>
+                                  <p className="font-medium text-sm" style={{ color: "#1A1A1A" }}>{REPORT_LABELS[report.reportId] ?? report.title}</p>
+                                  {report.chatModified && report.chatInstruction && (
+                                    <p className="text-[10px] mt-0.5 italic truncate max-w-xs" style={{ color: "#9B9488" }}>
+                                      &ldquo;{report.chatInstruction}&rdquo;
+                                    </p>
+                                  )}
+                                </div>
                               </div>
                             </td>
                             <td className="px-5 py-4"><span className="text-sm" style={{ color: "#6B6560" }}>{report.data?.empresa ?? "—"}</span></td>
@@ -214,7 +221,10 @@ export default function ReportsClient() {
                             <td className="px-5 py-4"><span className="text-xs" style={{ color: "#9B9488" }}>{date} · {time}</span></td>
                             <td className="px-5 py-4">
                               <div className="flex items-center gap-2 justify-end">
-                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded mr-1" style={{ backgroundColor: "#EBF3E8", color: "#3D7A1C" }}>Listo</span>
+                                {report.chatModified
+                                  ? <span className="text-[11px] font-semibold px-2 py-0.5 rounded mr-1" style={{ backgroundColor: "#FFF8EC", color: "#B8922A" }}>Via chat</span>
+                                  : <span className="text-[11px] font-semibold px-2 py-0.5 rounded mr-1" style={{ backgroundColor: "#EBF3E8", color: "#3D7A1C" }}>Listo</span>
+                                }
                                 <button
                                   onClick={() => setPreviewReport(report)}
                                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer hover:bg-gray-50"

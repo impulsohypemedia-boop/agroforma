@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
-import "leaflet/dist/leaflet.css";
+// leaflet.css is imported in the parent component (TabMapa) to avoid SSR issues
 
 // Fix Leaflet's broken default icon paths in webpack/Next.js environments
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;

@@ -6,4 +6,6 @@ export type GeneratedReport = {
   downloadPath: string;     // endpoint para regenerar el Excel
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any;                // JSON devuelto por Claude
+  chatModified?: boolean;   // fue generado desde el chat
+  chatInstruction?: string; // instrucción que generó la modificación
 };
