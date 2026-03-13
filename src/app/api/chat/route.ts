@@ -2,15 +2,15 @@ import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import ExcelJS from "exceljs";
 
-const BASE_SYSTEM_PROMPT = `Sos el asistente de AgroForma, la inteligencia artificial de la empresa agropecuaria argentina. Tenés acceso a la documentación que subió el usuario (balances, estados contables, planillas, liquidaciones) y a los reportes generados.
+const BASE_SYSTEM = `Sos el asistente de AgroForma, la inteligencia artificial de la empresa agropecuaria argentina.
 
-Tu rol es:
+Tu rol:
 - Responder preguntas sobre la documentación y los reportes de la empresa
 - Generar análisis, comparaciones, cálculos que el usuario pida
 - Cuando te pidan una tabla o planilla, devolvé los datos en formato de tabla markdown
 - Usá siempre formato numérico argentino (punto para miles, coma para decimales)
 - Respondé en español argentino, profesional pero cercano
-- Si no tenés datos suficientes para responder algo, explicá qué documentación necesitarías
+- Si no tenés datos suficientes, explicá qué documentación necesitarías
 - Sos un analista financiero experto en el sector agropecuario argentino
 
 MODIFICACIÓN DE REPORTES — MUY IMPORTANTE:
@@ -24,58 +24,152 @@ REPORTE_MODIFICADO_END
 INSTRUCCION: texto exacto de lo que pidió el usuario
 
 REGLAS CRÍTICAS:
-- REPORTE_MODIFICADO_START y REPORTE_MODIFICADO_END deben estar SOLOS en su línea (sin espacios ni otros caracteres)
-- El JSON entre los marcadores: objeto completo con la misma estructura que el original, todos los valores afectados recalculados
+- REPORTE_MODIFICADO_START y REPORTE_MODIFICADO_END deben estar SOLOS en su línea
+- El JSON entre los marcadores: objeto completo con la misma estructura que el original
 - REPORT_ID debe ser exactamente uno de: margen-bruto | situacion-patrimonial | ratios | bridge | break-even | calificacion-bancaria | evolucion-historica
 - NO uses bloques \`\`\`json ni ningún otro marcador markdown dentro del JSON
 - Si es solo una pregunta o análisis (sin modificación), respondé normalmente SIN ninguno de estos marcadores`;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildSystemPrompt(ctx: Record<string, any> | null): string {
+  if (!ctx) return BASE_SYSTEM;
+
+  const lines: string[] = [BASE_SYSTEM, ""];
+
+  // Empresa info
+  if (ctx.empresa) {
+    const e = ctx.empresa;
+    lines.push("## EMPRESA ACTIVA");
+    if (e.nombre)    lines.push(`Nombre: ${e.nombre}`);
+    if (e.cuit)      lines.push(`CUIT: ${e.cuit}`);
+    if (e.actividad) lines.push(`Actividad: ${e.actividad}`);
+    if (e.provincia) lines.push(`Provincia: ${e.provincia}`);
+    if (e.localidad) lines.push(`Localidad: ${e.localidad}`);
+    if (ctx.campanaActual) lines.push(`Campaña activa: ${ctx.campanaActual}`);
+    lines.push("");
+  }
+
+  // Analysis result
+  if (ctx.analysis) {
+    const a = ctx.analysis;
+    lines.push("## ANÁLISIS DE DOCUMENTACIÓN");
+    if (a.empresa)    lines.push(`Empresa detectada: ${a.empresa}`);
+    if (a.cuit)       lines.push(`CUIT: ${a.cuit}`);
+    if (a.ejercicios?.length) lines.push(`Ejercicios: ${a.ejercicios.join(", ")}`);
+    if (a.documentos_detectados?.length) {
+      lines.push("Documentos detectados:");
+      for (const d of a.documentos_detectados) {
+        lines.push(`  - ${d.tipo}: ${d.nombre_archivo} (${d.periodo})`);
+      }
+    }
+    lines.push("");
+  }
+
+  // Extracted docs data (the actual financial numbers)
+  if (ctx.extractedDocsData?.length > 0) {
+    lines.push("## DATOS EXTRAÍDOS DE DOCUMENTOS");
+    for (const doc of ctx.extractedDocsData) {
+      lines.push(`### ${doc.tipo} — ${doc.nombre_archivo} (${doc.periodo})`);
+      lines.push(JSON.stringify(doc.datos, null, 2));
+      lines.push("");
+    }
+  }
+
+  // Generated reports
+  if (ctx.generatedReports?.length > 0) {
+    lines.push("## REPORTES GENERADOS DISPONIBLES PARA MODIFICAR");
+    lines.push(JSON.stringify(ctx.generatedReports.map((r: Record<string, unknown>) => ({
+      reportId: r.reportId, title: r.title, data: r.data,
+    })), null, 2));
+    lines.push("");
+  }
+
+  // Campos & siembra
+  if (ctx.campos?.length > 0) {
+    lines.push("## CAMPOS");
+    for (const c of ctx.campos) {
+      lines.push(`- ${c.nombre}${c.hectareas ? " — " + c.hectareas + " ha" : ""}${c.provincia ? " (" + c.provincia + ")" : ""}`);
+    }
+    lines.push("");
+  }
+  if (ctx.planSiembra?.length > 0) {
+    lines.push(`## PLAN DE SIEMBRA — CAMPAÑA ${ctx.campanaActual ?? ""}`);
+    const campoMap: Record<string, string> = {};
+    for (const c of (ctx.campos ?? [])) campoMap[c.id] = c.nombre;
+    for (const l of ctx.planSiembra) {
+      lines.push(
+        `- ${campoMap[l.campoId] ?? l.campoId}: ${l.cultivo} — ` +
+        `${l.hectareas} ha, rinde ${l.rendimientoEsperado} tn/ha, ` +
+        `precio USD ${l.precioEsperado}/tn, costos USD ${l.costosDirectos}/ha`
+      );
+    }
+    lines.push("");
+  }
+
+  // Hacienda
+  if (ctx.stockHacienda?.length > 0) {
+    lines.push("## STOCK DE HACIENDA");
+    const campoMap: Record<string, string> = {};
+    for (const c of (ctx.campos ?? [])) campoMap[c.id] = c.nombre;
+    for (const s of ctx.stockHacienda) {
+      lines.push(
+        `- ${campoMap[s.campoId] ?? s.campoId}: ${s.categoria} — ` +
+        `${s.cantidad} cabezas, ${s.pesoPromedio} kg promedio`
+      );
+    }
+    lines.push("");
+  }
+
+  // Planos
+  if (ctx.archivosPlanos?.length > 0) {
+    lines.push("## PLANOS DE CAMPO ANALIZADOS");
+    for (const p of ctx.archivosPlanos) {
+      lines.push(`- ${p.nombre}`);
+      if (p.datos?.superficie_total) lines.push(`  Superficie: ${p.datos.superficie_total} ha`);
+      if (p.datos?.cultivos_detectados?.length) {
+        lines.push(`  Cultivos: ${p.datos.cultivos_detectados.map((c: Record<string,unknown>) => c.cultivo).join(", ")}`);
+      }
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
 
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
 
-    const messagesRaw        = formData.get("messages")              as string;
-    const analysisRaw        = formData.get("analysis")              as string | null;
-    const reportsRaw         = formData.get("reports")               as string | null;
-    const presentacionesCtx  = formData.get("presentaciones_context") as string | null;
-    const files              = formData.getAll("files")              as File[];
+    const messagesRaw       = formData.get("messages")        as string;
+    const empresaContextRaw = formData.get("empresa_context") as string | null;
+    const files             = formData.getAll("files")        as File[];
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const conversationHistory: { role: "user" | "assistant"; content: string }[] =
       JSON.parse(messagesRaw ?? "[]");
 
-    // Build system prompt — include analysis + reports context
-    let systemPrompt = BASE_SYSTEM_PROMPT;
-    if (analysisRaw) {
-      try {
-        const analysis = JSON.parse(analysisRaw);
-        systemPrompt += `\n\nCONTEXTO DE LA EMPRESA:\n${JSON.stringify(analysis, null, 2)}`;
-      } catch { /* ignore */ }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let empresaContext: Record<string, any> | null = null;
+    if (empresaContextRaw) {
+      try { empresaContext = JSON.parse(empresaContextRaw); } catch { /* ignore */ }
     }
-    if (reportsRaw) {
-      try {
-        const reports = JSON.parse(reportsRaw);
-        if (Array.isArray(reports) && reports.length > 0) {
-          const reportsSummary = reports.map((r: { reportId: string; title: string; data: unknown }) => ({
-            reportId: r.reportId,
-            title: r.title,
-            data: r.data,
-          }));
-          systemPrompt += `\n\nREPORTES GENERADOS DISPONIBLES PARA MODIFICAR:\n${JSON.stringify(reportsSummary, null, 2)}`;
-        }
-      } catch { /* ignore */ }
-    }
-    if (presentacionesCtx) {
-      systemPrompt += `\n\nCONTEXTO DE PRESENTACIONES Y DOCUMENTOS ADICIONALES:\n${presentacionesCtx}`;
-    }
+
+    console.log("[chat] messages:", conversationHistory.length, "| empresa:", empresaContext?.empresa?.nombre ?? "sin contexto", "| files:", files.length);
+    console.log("[chat] último mensaje:", conversationHistory.at(-1)?.content?.slice(0, 100));
+
+    const systemPrompt = buildSystemPrompt(empresaContext);
 
     // Build file content blocks
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const fileBlocks: any[] = [];
+    let hasPdfFiles = false;
+
     for (const file of files) {
       const buffer = Buffer.from(await file.arrayBuffer());
       const name = file.name.toLowerCase();
 
       if (name.endsWith(".pdf")) {
+        hasPdfFiles = true;
         fileBlocks.push({
           type: "document",
           source: { type: "base64", media_type: "application/pdf", data: buffer.toString("base64") },
@@ -129,18 +223,26 @@ export async function POST(request: NextRequest) {
     }
 
     if (apiMessages.length === 0 || apiMessages[apiMessages.length - 1].role !== "user") {
+      console.log("[chat] ERROR: mensaje inválido, últimoRol:", apiMessages.at(-1)?.role);
       return new Response("Mensaje inválido", { status: 400 });
     }
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-    const stream = client.messages.stream({
+    console.log("[chat] llamando a Claude, mensajes API:", apiMessages.length, "| system length:", systemPrompt.length, "| pdf files:", hasPdfFiles);
+
+    // Use beta endpoint only when PDF files are present
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const streamParams: any = {
       model: "claude-opus-4-6",
       max_tokens: 8192,
       system: systemPrompt,
       messages: apiMessages,
-      betas: fileBlocks.length > 0 ? ["pdfs-2024-09-25"] : undefined,
-    });
+    };
+
+    const stream = hasPdfFiles
+      ? client.beta.messages.stream({ ...streamParams, betas: ["pdfs-2024-09-25"] })
+      : client.messages.stream(streamParams);
 
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
@@ -154,6 +256,7 @@ export async function POST(request: NextRequest) {
               controller.enqueue(encoder.encode(event.delta.text));
             }
           }
+          console.log("[chat] stream completado");
         } finally {
           controller.close();
         }
@@ -168,7 +271,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (err) {
-    console.error("Error en /api/chat:", err);
+    console.error("[chat] ERROR:", err);
     return new Response(
       JSON.stringify({ error: err instanceof Error ? err.message : "Error interno" }),
       { status: 500, headers: { "Content-Type": "application/json" } }

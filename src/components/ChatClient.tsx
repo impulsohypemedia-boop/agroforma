@@ -7,7 +7,6 @@ import {
 } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import { useAppContext } from "@/context/AppContext";
-import { AnalysisResult } from "@/types/analysis";
 import { GeneratedReport } from "@/types/report";
 import { generateChatMessagePDF } from "@/lib/pdf/report-pdf";
 import { extractOutermostJSON } from "@/lib/extractJSON";
@@ -576,13 +575,18 @@ const SUGGESTIONS = [
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function ChatClient() {
-  const { fileStore, empresaActivaId, generatedReports, setEscenarios, presentaciones, presentacionBlobMap } = useAppContext();
+  const {
+    fileStore, empresaActiva, empresaActivaId, generatedReports, setEscenarios,
+    presentaciones, presentacionBlobMap,
+    analysisResult, extractedDocsData,
+    campos, planSiembra, campanaActual,
+    stockHacienda, movimientosHacienda, archivosPlanos,
+  } = useAppContext();
 
   const [conversations,  setConversations]  = useState<Conversation[]>([]);
   const [activeId,       setActiveId]       = useState<string | null>(null);
   const [input,          setInput]          = useState("");
   const [streaming,      setStreaming]      = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [hydrated,       setHydrated]       = useState(false);
   const [previewReport,  setPreviewReport]  = useState<GeneratedReport | null>(null);
 
@@ -609,7 +613,7 @@ export default function ChatClient() {
   // Unused but kept for potential future use
   void setMessages;
 
-  // ── Load from localStorage ─────────────────────────────────────────────────
+  // ── Load conversations from localStorage ──────────────────────────────────
   useEffect(() => {
     try {
       const saved = localStorage.getItem(convKey);
@@ -625,12 +629,6 @@ export default function ChatClient() {
         setConversations([]);
         setActiveId(null);
       }
-      const analysisKey = empresaActivaId
-        ? `agroforma_empresa_${empresaActivaId}_analysis`
-        : "agroforma_analysis";
-      const savedAnalysis = localStorage.getItem(analysisKey);
-      if (savedAnalysis) setAnalysisResult(JSON.parse(savedAnalysis));
-      else setAnalysisResult(null);
     } catch { /* ignore */ }
     setHydrated(true);
   }, [empresaActivaId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -699,7 +697,7 @@ export default function ChatClient() {
   }, []);
 
   // ── Send message ───────────────────────────────────────────────────────────
-  const empresa = analysisResult?.empresa ?? null;
+  const empresa = empresaActiva?.nombre ?? analysisResult?.empresa ?? null;
 
   const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
@@ -738,11 +736,22 @@ export default function ChatClient() {
     try {
       const fd = new FormData();
       fd.append("messages", JSON.stringify(historyForSend));
-      if (analysisResult) fd.append("analysis", JSON.stringify(analysisResult));
-      // Include generated reports for modification context (send data but keep size manageable)
-      if (generatedReports.length > 0) {
-        fd.append("reports", JSON.stringify(generatedReports.slice(-5))); // last 5 reports
-      }
+
+      // Build full empresa context for the API
+      const empresaContext = {
+        empresa:             empresaActiva,
+        analysis:            analysisResult,
+        extractedDocsData,
+        generatedReports:    generatedReports.slice(-5),
+        campos,
+        planSiembra:         planSiembra.filter(l => l.campana === campanaActual),
+        campanaActual,
+        stockHacienda,
+        movimientosHacienda: movimientosHacienda.slice(-50),
+        archivosPlanos,
+      };
+      fd.append("empresa_context", JSON.stringify(empresaContext));
+
       fileStore.forEach((f) => fd.append("files", f));
 
       // Include presentaciones summaries as text context
