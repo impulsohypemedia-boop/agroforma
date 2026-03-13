@@ -28,7 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={`${fraunces.variable} ${plusJakarta.variable}`}>
+      <body className={`${fraunces.variable} ${plusJakarta.variable}`} suppressHydrationWarning>
         <AuthProvider>
           <AppProvider>{children}</AppProvider>
         </AuthProvider>
