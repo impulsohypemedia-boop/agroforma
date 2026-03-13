@@ -1,53 +1,30 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react";
 import { UploadedDoc } from "@/types/document";
 import { GeneratedReport } from "@/types/report";
 import { AnalysisResult, ExtractedDocData } from "@/types/analysis";
 import { Campo, Lote, StockPorCampo, MovimientoHacienda, ArchivoPlano } from "@/types/gestion";
 import { Empresa, EmpresaFormData } from "@/types/empresa";
 import { Presentacion } from "@/types/presentacion";
+import { useAuth } from "@/context/AuthContext";
+import {
+  fetchEmpresas, createEmpresa as dbCreateEmpresa,
+  updateEmpresa as dbUpdateEmpresa, deleteEmpresa as dbDeleteEmpresa,
+  saveState, loadAllState,
+} from "@/lib/supabase/db";
 
-// ── Per-company localStorage key helper ────────────────────────────────────
-function eKey(id: string, tipo: string) {
-  return `agroforma_empresa_${id}_${tipo}`;
-}
-
-function loadJSON<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch { return fallback; }
-}
-
-// ── Load all data for a given empresa ID ───────────────────────────────────
-function loadEmpresaData(id: string) {
-  return {
-    documents:            loadJSON<UploadedDoc[]>(eKey(id, "documents"), []),
-    generatedReports:     loadJSON<GeneratedReport[]>(eKey(id, "reports"), []),
-    escenarios:           loadJSON<GeneratedReport[]>(eKey(id, "escenarios"), []),
-    analysisResult:       loadJSON<AnalysisResult | null>(eKey(id, "analysis"), null),
-    extractedDocsData:    loadJSON<ExtractedDocData[]>(eKey(id, "extracted_docs"), []),
-    campos:               loadJSON<Campo[]>(eKey(id, "campos"), []),
-    planSiembra:          loadJSON<Lote[]>(eKey(id, "plan_siembra"), []),
-    campanaActual:        localStorage.getItem(eKey(id, "campana")) ?? "2025/26",
-    stockHacienda:        loadJSON<StockPorCampo[]>(eKey(id, "stock_hacienda"), []),
-    movimientosHacienda:  loadJSON<MovimientoHacienda[]>(eKey(id, "movimientos_hacienda"), []),
-    archivosPlanos:       loadJSON<ArchivoPlano[]>(eKey(id, "planos"), []),
-    presentaciones:       loadJSON<Presentacion[]>(eKey(id, "presentaciones"), []),
-  };
-}
-
+// ── Types ─────────────────────────────────────────────────────────────────────
 type AppCtx = {
-  // Empresa management
+  loadingEmpresas:     boolean;
+  loadingData:         boolean;
   empresas:            Empresa[];
   empresaActivaId:     string | null;
   empresaActiva:       Empresa | null;
-  crearEmpresa:        (data: EmpresaFormData) => Empresa;
+  crearEmpresa:        (data: EmpresaFormData) => Promise<Empresa | null>;
   cambiarEmpresa:      (id: string) => void;
   editarEmpresa:       (id: string, data: Partial<Empresa>) => void;
   eliminarEmpresa:     (id: string) => void;
-  // Per-empresa data
   fileStore:           File[];
   setFileStore:        React.Dispatch<React.SetStateAction<File[]>>;
   documents:           UploadedDoc[];
@@ -81,8 +58,9 @@ type AppCtx = {
 };
 
 const AppContext = createContext<AppCtx>({
+  loadingEmpresas: true, loadingData: false,
   empresas: [], empresaActivaId: null, empresaActiva: null,
-  crearEmpresa: () => ({ id: "", nombre: "", actividad: "mixta", campana: "2025/26", creadaEl: "" }),
+  crearEmpresa: async () => null,
   cambiarEmpresa: () => {}, editarEmpresa: () => {}, eliminarEmpresa: () => {},
   fileStore: [], setFileStore: () => {},
   documents: [], setDocuments: () => {},
@@ -101,12 +79,15 @@ const AppContext = createContext<AppCtx>({
   presentacionBlobMap: {}, setPresentacionBlobMap: () => {},
 });
 
+// ── Provider ──────────────────────────────────────────────────────────────────
 export function AppProvider({ children }: { children: ReactNode }) {
-  // ── Empresa state ────────────────────────────────────────────────────────
+  const { user } = useAuth();
+
+  const [loadingEmpresas, setLoadingEmpresas] = useState(true);
+  const [loadingData,     setLoadingData]     = useState(false);
   const [empresas,        setEmpresas]        = useState<Empresa[]>([]);
   const [empresaActivaId, setEmpresaActivaId] = useState<string | null>(null);
 
-  // ── Per-empresa data state ───────────────────────────────────────────────
   const [fileStore,            setFileStore]            = useState<File[]>([]);
   const [documents,            setDocuments]            = useState<UploadedDoc[]>([]);
   const [generatedReports,     setGeneratedReports]     = useState<GeneratedReport[]>([]);
@@ -123,138 +104,151 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [presentaciones,       setPresentaciones]       = useState<Presentacion[]>([]);
   const [presentacionBlobMap,  setPresentacionBlobMap]  = useState<Record<string, File>>({});
 
-  const [hydrated, setHydrated] = useState(false);
+  // Gate that prevents saving back immediately after loading from DB
+  const readyToSave = useRef(false);
 
   const empresaActiva = empresas.find(e => e.id === empresaActivaId) ?? null;
 
-  // ── Apply loaded data to state ────────────────────────────────────────────
-  const applyEmpresaData = useCallback((data: ReturnType<typeof loadEmpresaData>) => {
-    setDocuments(data.documents);
-    setGeneratedReports(data.generatedReports);
-    setEscenarios(data.escenarios);
-    setAnalysisResult(data.analysisResult);
-    setExtractedDocsData(data.extractedDocsData);
-    setCampos(data.campos);
-    setPlanSiembra(data.planSiembra);
-    setCampanaActual(data.campanaActual);
-    setStockHacienda(data.stockHacienda);
-    setMovimientosHacienda(data.movimientosHacienda);
-    setArchivosPlanos(data.archivosPlanos);
-    setPresentaciones(data.presentaciones);
-    setFileStore([]);
-    setPlanoBlobMap({});
-    setPresentacionBlobMap({});
+  // ── Reset all per-empresa state to empty ─────────────────────────────────
+  const resetData = useCallback(() => {
+    setDocuments([]); setGeneratedReports([]); setEscenarios([]);
+    setAnalysisResult(null); setExtractedDocsData([]);
+    setCampos([]); setPlanSiembra([]); setCampanaActual("2025/26");
+    setStockHacienda([]); setMovimientosHacienda([]);
+    setArchivosPlanos([]); setFileStore([]); setPlanoBlobMap({});
+    setPresentaciones([]); setPresentacionBlobMap({});
   }, []);
 
-  // ── Initial load & migration ──────────────────────────────────────────────
-  useEffect(() => {
-    try {
-      const savedEmpresas = localStorage.getItem("agroforma_empresas");
-      const savedActivaId = localStorage.getItem("agroforma_empresa_activa");
+  // ── Apply a loaded state record to React state ───────────────────────────
+  const applyState = useCallback((s: Record<string, unknown>) => {
+    setDocuments(           (s.documents            as UploadedDoc[]        | null) ?? []);
+    setGeneratedReports(    (s.reports               as GeneratedReport[]    | null) ?? []);
+    setEscenarios(          (s.escenarios            as GeneratedReport[]    | null) ?? []);
+    setAnalysisResult(      (s.analysis              as AnalysisResult       | null) ?? null);
+    setExtractedDocsData(   (s.extracted_docs        as ExtractedDocData[]   | null) ?? []);
+    setCampos(              (s.campos                as Campo[]              | null) ?? []);
+    setPlanSiembra(         (s.plan_siembra          as Lote[]               | null) ?? []);
+    setCampanaActual(       (s.campana               as string               | null) ?? "2025/26");
+    setStockHacienda(       (s.stock_hacienda        as StockPorCampo[]      | null) ?? []);
+    setMovimientosHacienda( (s.movimientos_hacienda  as MovimientoHacienda[] | null) ?? []);
+    setArchivosPlanos(      (s.planos                as ArchivoPlano[]       | null) ?? []);
+    setPresentaciones(      (s.presentaciones        as Presentacion[]       | null) ?? []);
+    setFileStore([]); setPlanoBlobMap({}); setPresentacionBlobMap({});
+  }, []);
 
-      if (savedEmpresas) {
-        // Normal load
-        const lista: Empresa[] = JSON.parse(savedEmpresas);
-        setEmpresas(lista);
-        const activeId = savedActivaId && lista.find(e => e.id === savedActivaId)
-          ? savedActivaId
-          : (lista[0]?.id ?? null);
-        setEmpresaActivaId(activeId);
-        if (activeId) applyEmpresaData(loadEmpresaData(activeId));
-      } else {
-        // Check for legacy data to migrate
-        const legacyDocs = localStorage.getItem("agroforma_documents");
-        if (legacyDocs && legacyDocs !== "[]") {
-          // Migrate: create default empresa and move old data
-          const defaultId = "default";
-          const defaultEmpresa: Empresa = {
-            id: defaultId, nombre: "Mi Empresa",
-            actividad: "mixta", campana: "2025/26",
-            creadaEl: new Date().toISOString(),
-          };
-          const legacyKeys: [string, string][] = [
-            ["agroforma_documents", "documents"],
-            ["agroforma_reports", "reports"],
-            ["agroforma_analysis", "analysis"],
-            ["agroforma_extracted_docs", "extracted_docs"],
-            ["agroforma_campos", "campos"],
-            ["agroforma_plan_siembra", "plan_siembra"],
-            ["agroforma_stock_hacienda", "stock_hacienda"],
-            ["agroforma_movimientos_hacienda", "movimientos_hacienda"],
-            ["agroforma_planos", "planos"],
-          ];
-          for (const [oldKey, newTipo] of legacyKeys) {
-            const val = localStorage.getItem(oldKey);
-            if (val) {
-              localStorage.setItem(eKey(defaultId, newTipo), val);
-              localStorage.removeItem(oldKey);
-            }
-          }
-          const campanaOld = localStorage.getItem("agroforma_campana");
-          if (campanaOld) {
-            localStorage.setItem(eKey(defaultId, "campana"), campanaOld);
-            localStorage.removeItem("agroforma_campana");
-          }
-          // Try to get empresa name from analysis
-          const analysisRaw = localStorage.getItem(eKey(defaultId, "analysis"));
-          if (analysisRaw) {
-            try {
-              const analysis = JSON.parse(analysisRaw);
-              if (analysis?.empresa) defaultEmpresa.nombre = analysis.empresa;
-            } catch { /* ignore */ }
-          }
-          localStorage.setItem("agroforma_empresas", JSON.stringify([defaultEmpresa]));
-          localStorage.setItem("agroforma_empresa_activa", defaultId);
-          setEmpresas([defaultEmpresa]);
-          setEmpresaActivaId(defaultId);
-          applyEmpresaData(loadEmpresaData(defaultId));
-        }
-        // else: no data at all, show empty state (empresas = [], empresaActivaId = null)
-      }
-    } catch { /* localStorage unavailable */ }
-    setHydrated(true);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Reload data when empresa changes (after initial hydration) ────────────
+  // ── Load empresas when user signs in ─────────────────────────────────────
   useEffect(() => {
-    if (!hydrated || !empresaActivaId) return;
-    applyEmpresaData(loadEmpresaData(empresaActivaId));
-    localStorage.setItem("agroforma_empresa_activa", empresaActivaId);
+    if (!user) {
+      setEmpresas([]);
+      setEmpresaActivaId(null);
+      setLoadingEmpresas(false);
+      readyToSave.current = false;
+      return;
+    }
+    readyToSave.current = false;
+    setLoadingEmpresas(true);
+    fetchEmpresas(user.id).then((lista) => {
+      setEmpresas(lista);
+      // Restore last active empresa from localStorage (cheap local pref)
+      const savedId = typeof window !== "undefined"
+        ? localStorage.getItem(`agroforma_activa_${user.id}`)
+        : null;
+      const activeId = savedId && lista.find(e => e.id === savedId)
+        ? savedId
+        : (lista[0]?.id ?? null);
+      setEmpresaActivaId(activeId);
+      setLoadingEmpresas(false);
+    });
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Load per-empresa data when active empresa changes ────────────────────
+  useEffect(() => {
+    readyToSave.current = false;
+    if (!empresaActivaId) { resetData(); return; }
+
+    // Persist preference locally
+    if (user?.id) {
+      localStorage.setItem(`agroforma_activa_${user.id}`, empresaActivaId);
+    }
+
+    setLoadingData(true);
+    loadAllState(empresaActivaId).then((state) => {
+      applyState(state);
+      setLoadingData(false);
+      readyToSave.current = true;
+    });
   }, [empresaActivaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Persist per-empresa data ──────────────────────────────────────────────
-  useEffect(() => { if (!hydrated || !empresaActivaId) return; localStorage.setItem(eKey(empresaActivaId, "documents"), JSON.stringify(documents)); }, [documents, hydrated, empresaActivaId]);
-  useEffect(() => { if (!hydrated || !empresaActivaId) return; localStorage.setItem(eKey(empresaActivaId, "reports"), JSON.stringify(generatedReports)); }, [generatedReports, hydrated, empresaActivaId]);
-  useEffect(() => { if (!hydrated || !empresaActivaId) return; localStorage.setItem(eKey(empresaActivaId, "escenarios"), JSON.stringify(escenarios)); }, [escenarios, hydrated, empresaActivaId]);
-  useEffect(() => { if (!hydrated || !empresaActivaId) return; localStorage.setItem(eKey(empresaActivaId, "analysis"), JSON.stringify(analysisResult)); }, [analysisResult, hydrated, empresaActivaId]);
-  useEffect(() => { if (!hydrated || !empresaActivaId) return; localStorage.setItem(eKey(empresaActivaId, "extracted_docs"), JSON.stringify(extractedDocsData)); }, [extractedDocsData, hydrated, empresaActivaId]);
-  useEffect(() => { if (!hydrated || !empresaActivaId) return; localStorage.setItem(eKey(empresaActivaId, "campos"), JSON.stringify(campos)); }, [campos, hydrated, empresaActivaId]);
-  useEffect(() => { if (!hydrated || !empresaActivaId) return; localStorage.setItem(eKey(empresaActivaId, "plan_siembra"), JSON.stringify(planSiembra)); }, [planSiembra, hydrated, empresaActivaId]);
-  useEffect(() => { if (!hydrated || !empresaActivaId) return; localStorage.setItem(eKey(empresaActivaId, "campana"), campanaActual); }, [campanaActual, hydrated, empresaActivaId]);
-  useEffect(() => { if (!hydrated || !empresaActivaId) return; localStorage.setItem(eKey(empresaActivaId, "stock_hacienda"), JSON.stringify(stockHacienda)); }, [stockHacienda, hydrated, empresaActivaId]);
-  useEffect(() => { if (!hydrated || !empresaActivaId) return; localStorage.setItem(eKey(empresaActivaId, "movimientos_hacienda"), JSON.stringify(movimientosHacienda)); }, [movimientosHacienda, hydrated, empresaActivaId]);
-  useEffect(() => { if (!hydrated || !empresaActivaId) return; localStorage.setItem(eKey(empresaActivaId, "planos"), JSON.stringify(archivosPlanos)); }, [archivosPlanos, hydrated, empresaActivaId]);
-  useEffect(() => { if (!hydrated || !empresaActivaId) return; localStorage.setItem(eKey(empresaActivaId, "presentaciones"), JSON.stringify(presentaciones)); }, [presentaciones, hydrated, empresaActivaId]);
+  // ── Persist per-empresa data to Supabase ─────────────────────────────────
+  useEffect(() => {
+    if (!readyToSave.current || !empresaActivaId) return;
+    saveState(empresaActivaId, "documents", documents);
+  }, [documents]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Persist empresa list ──────────────────────────────────────────────────
-  useEffect(() => { if (!hydrated) return; localStorage.setItem("agroforma_empresas", JSON.stringify(empresas)); }, [empresas, hydrated]);
+  useEffect(() => {
+    if (!readyToSave.current || !empresaActivaId) return;
+    saveState(empresaActivaId, "reports", generatedReports);
+  }, [generatedReports]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!readyToSave.current || !empresaActivaId) return;
+    saveState(empresaActivaId, "escenarios", escenarios);
+  }, [escenarios]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!readyToSave.current || !empresaActivaId) return;
+    saveState(empresaActivaId, "analysis", analysisResult);
+  }, [analysisResult]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!readyToSave.current || !empresaActivaId) return;
+    saveState(empresaActivaId, "extracted_docs", extractedDocsData);
+  }, [extractedDocsData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!readyToSave.current || !empresaActivaId) return;
+    saveState(empresaActivaId, "campos", campos);
+  }, [campos]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!readyToSave.current || !empresaActivaId) return;
+    saveState(empresaActivaId, "plan_siembra", planSiembra);
+  }, [planSiembra]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!readyToSave.current || !empresaActivaId) return;
+    saveState(empresaActivaId, "campana", campanaActual);
+  }, [campanaActual]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!readyToSave.current || !empresaActivaId) return;
+    saveState(empresaActivaId, "stock_hacienda", stockHacienda);
+  }, [stockHacienda]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!readyToSave.current || !empresaActivaId) return;
+    saveState(empresaActivaId, "movimientos_hacienda", movimientosHacienda);
+  }, [movimientosHacienda]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!readyToSave.current || !empresaActivaId) return;
+    saveState(empresaActivaId, "planos", archivosPlanos);
+  }, [archivosPlanos]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!readyToSave.current || !empresaActivaId) return;
+    saveState(empresaActivaId, "presentaciones", presentaciones);
+  }, [presentaciones]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Empresa management actions ────────────────────────────────────────────
-  const crearEmpresa = useCallback((data: EmpresaFormData): Empresa => {
-    const nueva: Empresa = {
-      id: `emp_${Date.now()}`,
-      nombre: data.nombre,
-      cuit: data.cuit,
-      actividad: data.actividad,
-      provincia: data.provincia,
-      localidad: data.localidad,
-      campana: data.campana,
-      creadaEl: new Date().toISOString(),
-    };
+  const crearEmpresa = useCallback(async (data: EmpresaFormData): Promise<Empresa | null> => {
+    if (!user) return null;
+    const nueva = await dbCreateEmpresa(user.id, data);
+    if (!nueva) return null;
     setEmpresas(prev => [...prev, nueva]);
     setEmpresaActivaId(nueva.id);
     return nueva;
-  }, []);
+  }, [user]);
 
   const cambiarEmpresa = useCallback((id: string) => {
     setEmpresaActivaId(id);
@@ -263,33 +257,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const editarEmpresa = useCallback((id: string, data: Partial<Empresa>) => {
     setEmpresas(prev => prev.map(e => e.id === id ? { ...e, ...data } : e));
     if (id === empresaActivaId && data.campana) setCampanaActual(data.campana);
+    dbUpdateEmpresa(id, data);
   }, [empresaActivaId]);
 
   const eliminarEmpresa = useCallback((id: string) => {
-    // Remove all empresa data from localStorage
-    const tipos = ["documents", "reports", "escenarios", "analysis", "extracted_docs", "campos", "plan_siembra", "campana", "stock_hacienda", "movimientos_hacienda", "planos", "conversations", "active_conv", "presentaciones"];
-    tipos.forEach(t => localStorage.removeItem(eKey(id, t)));
+    dbDeleteEmpresa(id);
     setEmpresas(prev => {
       const rest = prev.filter(e => e.id !== id);
       if (empresaActivaId === id) {
         const nextId = rest[0]?.id ?? null;
         setEmpresaActivaId(nextId);
-        if (nextId) applyEmpresaData(loadEmpresaData(nextId));
-        else {
-          // Reset all data
-          setDocuments([]); setGeneratedReports([]); setEscenarios([]); setAnalysisResult(null);
-          setExtractedDocsData([]); setCampos([]); setPlanSiembra([]);
-          setCampanaActual("2025/26"); setStockHacienda([]); setMovimientosHacienda([]);
-          setArchivosPlanos([]); setFileStore([]); setPlanoBlobMap({});
-          setPresentaciones([]); setPresentacionBlobMap({});
-        }
+        if (!nextId) resetData();
       }
       return rest;
     });
-  }, [empresaActivaId, applyEmpresaData]);
+  }, [empresaActivaId, resetData]);
 
   return (
     <AppContext.Provider value={{
+      loadingEmpresas, loadingData,
       empresas, empresaActivaId, empresaActiva,
       crearEmpresa, cambiarEmpresa, editarEmpresa, eliminarEmpresa,
       fileStore, setFileStore,

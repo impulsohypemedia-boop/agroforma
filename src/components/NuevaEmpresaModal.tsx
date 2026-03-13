@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { X, Building2 } from "lucide-react";
 import { useAppContext } from "@/context/AppContext";
 import { Empresa, EmpresaFormData } from "@/types/empresa";
@@ -13,17 +13,21 @@ export default function NuevaEmpresaModal({ open, onClose, onCreated }: Props) {
     nombre: "", cuit: "", actividad: "mixta", provincia: "", localidad: "", campana: "2025/26",
   });
   const [error, setError] = useState("");
+  const [isPending, startTransition] = useTransition();
 
   if (!open) return null;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.nombre.trim()) { setError("El nombre es obligatorio"); return; }
-    const nueva = crearEmpresa(form);
-    onCreated?.(nueva);
-    onClose();
-    setForm({ nombre: "", cuit: "", actividad: "mixta", provincia: "", localidad: "", campana: "2025/26" });
-    setError("");
+    startTransition(async () => {
+      const nueva = await crearEmpresa(form);
+      if (!nueva) { setError("Error al crear la empresa. Intentá de nuevo."); return; }
+      onCreated?.(nueva);
+      onClose();
+      setForm({ nombre: "", cuit: "", actividad: "mixta", provincia: "", localidad: "", campana: "2025/26" });
+      setError("");
+    });
   }
 
   return (
@@ -127,8 +131,13 @@ export default function NuevaEmpresaModal({ open, onClose, onCreated }: Props) {
             <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
               Cancelar
             </button>
-            <button type="submit" className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors" style={{ backgroundColor: "#1A3311" }}>
-              Crear empresa
+            <button
+              type="submit"
+              disabled={isPending}
+              className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-60"
+              style={{ backgroundColor: "#1A3311" }}
+            >
+              {isPending ? "Creando…" : "Crear empresa"}
             </button>
           </div>
         </form>

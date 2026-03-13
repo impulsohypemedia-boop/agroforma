@@ -178,3 +178,36 @@ CREATE POLICY "Users can CRUD own conversaciones"
 CREATE POLICY "Users can CRUD own presentaciones"
   ON presentaciones FOR ALL
   USING (empresa_id IN (SELECT id FROM empresas WHERE user_id = auth.uid()));
+
+-- =============================================================================
+-- EMPRESA STATE — KV store for per-empresa app state (documents, reports, etc.)
+-- Stores all complex app state as JSONB blobs, keyed by type name.
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS empresa_state (
+  id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  empresa_id  UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  key         TEXT NOT NULL,
+  value       JSONB,
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (empresa_id, key)
+);
+
+ALTER TABLE empresa_state ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can CRUD own empresa_state"
+  ON empresa_state FOR ALL
+  USING (empresa_id IN (SELECT id FROM empresas WHERE user_id = auth.uid()));
+
+-- Auto-update updated_at
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER empresa_state_updated_at
+  BEFORE UPDATE ON empresa_state
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
