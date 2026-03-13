@@ -5,9 +5,11 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import {
   LayoutDashboard, FileText, BarChart2, MessageSquare,
-  Settings, LayoutGrid, Sprout, Beef, ChevronDown, Building2, Check, Plus, Layers, FlaskConical, MonitorPlay
+  Settings, LayoutGrid, Sprout, Beef, ChevronDown, Building2, Check, Plus, Layers, FlaskConical, MonitorPlay, LogOut
 } from "lucide-react";
 import { useAppContext } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
+import { createClient } from "@/lib/supabase/client";
 import NuevaEmpresaModal from "@/components/NuevaEmpresaModal";
 
 const navItems = [
@@ -32,6 +34,13 @@ export default function Sidebar() {
   const dropRef = useRef<HTMLDivElement>(null);
 
   const { empresas, empresaActiva, cambiarEmpresa } = useAppContext();
+  const { user } = useAuth();
+
+  async function handleLogout() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  }
 
   useEffect(() => { if (isGestionActive) setGestionOpen(true); }, [isGestionActive]);
 
@@ -185,9 +194,30 @@ export default function Sidebar() {
           </Link>
         </nav>
 
-        {/* Footer */}
-        <div className="px-6 py-5 border-t border-white/10">
-          <p className="text-xs text-white/30">v0.1.0</p>
+        {/* Footer — usuario + logout */}
+        <div className="px-4 py-4 border-t border-white/10">
+          {user && (
+            <div className="flex items-center gap-2 mb-2 px-2">
+              <div
+                className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold"
+                style={{ backgroundColor: "#D4AD3C", color: "#1A3311" }}
+              >
+                {(user.user_metadata?.nombre_completo?.[0] ?? user.email?.[0] ?? "U").toUpperCase()}
+              </div>
+              <span className="text-xs truncate flex-1" style={{ color: "rgba(255,255,255,0.50)" }}>
+                {user.user_metadata?.nombre_completo ?? user.email}
+              </span>
+            </div>
+          )}
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2 px-2 py-2 rounded-lg text-xs transition-colors cursor-pointer hover:bg-white/10"
+            style={{ color: "rgba(255,255,255,0.40)" }}
+          >
+            <LogOut size={13} />
+            Cerrar sesión
+          </button>
+          <p className="text-[10px] px-2 mt-1" style={{ color: "rgba(255,255,255,0.18)" }}>v0.4.0</p>
         </div>
       </aside>
 
