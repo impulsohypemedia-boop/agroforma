@@ -12,16 +12,20 @@ import { useAuth } from "@/context/AuthContext";
 import { createClient } from "@/lib/supabase/client";
 import NuevaEmpresaModal from "@/components/NuevaEmpresaModal";
 
-const navItems = [
+const navItemsTop = [
   { label: "Dashboard",  icon: LayoutDashboard, href: "/"         },
   { label: "Documentos", icon: FileText,         href: "/docs"    },
   { label: "Reportes",   icon: BarChart2,        href: "/reportes"},
-  { label: "Asistente",      icon: MessageSquare, href: "/chat"          },
+  { label: "Escenarios", icon: FlaskConical,     href: "/escenarios" },
+];
+
+const navItemsBottom = [
+  { label: "Asistente", icon: MessageSquare, href: "/chat" },
 ];
 
 const disabledItems = [
-  { label: "Presentaciones", icon: MonitorPlay, tooltip: "Esta función estará disponible próximamente" },
   { label: "Inversiones", icon: Wallet, tooltip: "Próximamente: seguimiento de FCIs, bonos, plazos fijos y cauciones" },
+  { label: "Presentaciones", icon: MonitorPlay, tooltip: "Esta función estará disponible próximamente" },
 ];
 
 const gestionSubItems = [
@@ -130,7 +134,8 @@ export default function Sidebar() {
 
         {/* Nav */}
         <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
+          {/* Dashboard, Documentos, Reportes, Escenarios */}
+          {navItemsTop.map((item) => {
             const active = pathname === item.href;
             const Icon = item.icon;
             return (
@@ -143,36 +148,6 @@ export default function Sidebar() {
             );
           })}
 
-          {/* Disabled items */}
-          {disabledItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <div
-                key={item.label}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-not-allowed"
-                style={{ color: "rgba(255,255,255,0.25)" }}
-                title={item.tooltip}
-              >
-                <Icon size={18} />
-                <span className="flex-1">{item.label}</span>
-                <span
-                  className="text-[9px] font-bold px-1.5 py-0.5 rounded"
-                  style={{ backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.30)" }}
-                >
-                  Próximamente
-                </span>
-              </div>
-            );
-          })}
-
-          {/* Escenarios */}
-          <Link href="/escenarios">
-            <div className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${pathname === "/escenarios" ? "bg-white/15 text-white" : "text-white/55 hover:bg-white/8 hover:text-white/80"}`}>
-              <FlaskConical size={18} className={pathname === "/escenarios" ? "text-white" : "text-white/55"} />
-              Escenarios
-            </div>
-          </Link>
-
           {/* Portfolio — only when 2+ empresas */}
           {empresas.length >= 2 && (
             <Link href="/portfolio">
@@ -182,6 +157,20 @@ export default function Sidebar() {
               </div>
             </Link>
           )}
+
+          {/* Asistente */}
+          {navItemsBottom.map((item) => {
+            const active = pathname === item.href;
+            const Icon = item.icon;
+            return (
+              <Link key={item.label} href={item.href}>
+                <div className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${active ? "bg-white/15 text-white" : "text-white/55 hover:bg-white/8 hover:text-white/80"}`}>
+                  <Icon size={18} className={active ? "text-white" : "text-white/55"} />
+                  {item.label}
+                </div>
+              </Link>
+            );
+          })}
 
           {/* Gestión collapsible */}
           <div>
@@ -218,6 +207,28 @@ export default function Sidebar() {
               </div>
             )}
           </div>
+
+          {/* Disabled items: Inversiones, Presentaciones */}
+          {disabledItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <div
+                key={item.label}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-not-allowed"
+                style={{ color: "rgba(255,255,255,0.25)" }}
+                title={item.tooltip}
+              >
+                <Icon size={18} />
+                <span className="flex-1">{item.label}</span>
+                <span
+                  className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+                  style={{ backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.30)" }}
+                >
+                  Próximamente
+                </span>
+              </div>
+            );
+          })}
 
           {/* Configuración */}
           <Link href="/config">
