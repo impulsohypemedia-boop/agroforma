@@ -187,24 +187,32 @@ export default function Sidebar() {
           <div>
             <button
               onClick={() => setGestionOpen(v => !v)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${isGestionActive ? "bg-white/15 text-white" : "text-white/55 hover:bg-white/8 hover:text-white/80"}`}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer text-white/55 hover:bg-white/8 hover:text-white/80"
             >
-              <LayoutGrid size={18} className={isGestionActive ? "text-white" : "text-white/55"} />
+              <LayoutGrid size={18} className="text-white/55" />
               <span className="flex-1 text-left">Gestión</span>
-              <ChevronDown size={14} className={`transition-transform ${gestionOpen ? "rotate-180" : ""} ${isGestionActive ? "text-white" : "text-white/40"}`} />
+              <ChevronDown size={14} className={`transition-transform ${gestionOpen ? "rotate-180" : ""} text-white/40`} />
             </button>
             {gestionOpen && (
               <div className="mt-1 ml-3 space-y-0.5">
                 {gestionSubItems.map((sub) => {
-                  const active = pathname === sub.href;
                   const Icon = sub.icon;
                   return (
-                    <Link key={sub.label} href={sub.href}>
-                      <div className={`flex items-center gap-3 pl-6 pr-3 py-2 rounded-lg text-sm transition-colors cursor-pointer ${active ? "bg-white/15 text-white font-medium" : "text-white/45 hover:bg-white/8 hover:text-white/70"}`}>
-                        <Icon size={15} />
-                        {sub.label}
-                      </div>
-                    </Link>
+                    <div
+                      key={sub.label}
+                      className="flex items-center gap-3 pl-6 pr-3 py-2 rounded-lg text-sm cursor-not-allowed"
+                      style={{ color: "rgba(255,255,255,0.25)" }}
+                      title="Esta función estará disponible próximamente"
+                    >
+                      <Icon size={15} />
+                      <span className="flex-1">{sub.label}</span>
+                      <span
+                        className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+                        style={{ backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.30)" }}
+                      >
+                        Próximamente
+                      </span>
+                    </div>
                   );
                 })}
               </div>
