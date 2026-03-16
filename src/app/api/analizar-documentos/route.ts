@@ -4,6 +4,7 @@ import ExcelJS from "exceljs";
 import { ExtractedDocData } from "@/types/analysis";
 import { extractOutermostJSON } from "@/lib/extractJSON";
 
+export const maxDuration = 60;
 const SYSTEM_PROMPT = `Sos un analista especializado en documentación de empresas agropecuarias argentinas. Te van a dar uno o más documentos. Analizalos y devolvé un JSON con:
 
 {

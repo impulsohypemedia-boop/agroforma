@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 
+export const maxDuration = 60;
 // Parse markdown tables from a chat message
 function parseMarkdownTables(text: string): { headers: string[]; rows: string[][] }[] {
   const tables: { headers: string[]; rows: string[][] }[] = [];

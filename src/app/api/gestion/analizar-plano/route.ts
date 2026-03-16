@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import type { ContentBlockParam, ImageBlockParam, DocumentBlockParam, TextBlockParam } from "@anthropic-ai/sdk/resources/messages";
 
+export const maxDuration = 60;
 const client = new Anthropic();
 
 const CULTIVO_COLORS: Record<string, string> = {

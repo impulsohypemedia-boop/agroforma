@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generatePortfolioExcel } from "@/lib/excel/portfolio";
 
+export const maxDuration = 60;
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { extractOutermostJSON } from "@/lib/extractJSON";
 
+export const maxDuration = 60;
 const SYSTEM_PROMPT = `Sos un analista financiero especializado en empresas agropecuarias argentinas. Te van a dar documentos contables con dos ejercicios comparativos (balance, estado de resultados). Tu tarea es construir un Bridge de Resultados que explique la variación del resultado entre los dos ejercicios.
 
 El Bridge descompone la variación total del resultado en sus causas principales. Identificá y cuantificá cada factor que contribuyó al cambio:

@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import ExcelJS from "exceljs";
 import { extractOutermostJSON } from "@/lib/extractJSON";
 
+export const maxDuration = 60;
 const SYSTEM_PROMPT = `Sos un analista contable especializado en empresas agropecuarias argentinas.
 Te dan un único documento contable. Extraé TODOS los datos financieros posibles y devolvelos como JSON estructurado.
 

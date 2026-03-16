@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { extractOutermostJSON } from "@/lib/extractJSON";
 
+export const maxDuration = 60;
 const SYSTEM_PROMPT = `Sos un analista financiero especializado en empresas agropecuarias argentinas. Te dan documentos contables. Tu tarea es extraer toda la información posible para calcular el punto de equilibrio (break-even) por cultivo.
 
 Completá todo lo que puedas encontrar. Lo que NO encuentres marcalo con null y agregalo a datos_faltantes.

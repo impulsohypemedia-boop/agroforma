@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { extractOutermostJSON } from "@/lib/extractJSON";
 
+export const maxDuration = 60;
 export async function POST(request: NextRequest) {
   try {
     const { empresasData } = await request.json();
