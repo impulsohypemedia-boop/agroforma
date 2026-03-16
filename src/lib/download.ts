@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 const BUCKET = "documentos";
 
@@ -7,12 +7,16 @@ const BUCKET = "documentos";
  * Used by API routes — receives a storage path, not a URL.
  */
 export async function downloadFromStorage(storagePath: string): Promise<Buffer> {
-  const { data, error } = await supabaseAdmin.storage
+  const supabase = getSupabaseAdmin();
+
+  const { data, error } = await supabase.storage
     .from(BUCKET)
     .download(storagePath);
 
   if (error || !data) {
-    throw new Error(`Error al descargar archivo de storage: ${error?.message ?? "sin datos"}`);
+    throw new Error(
+      `Error al descargar archivo de storage (bucket="${BUCKET}", path="${storagePath}"): ${error?.message ?? "sin datos"}`
+    );
   }
 
   return Buffer.from(await data.arrayBuffer());
