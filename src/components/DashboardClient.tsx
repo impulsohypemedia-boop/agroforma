@@ -203,7 +203,7 @@ export default function DashboardClient() {
     setExtractedDocsData([]);
 
     // Upload all files to Supabase Storage first
-    let uploaded: { name: string; type: string; size: number; path: string; signedUrl: string }[] = [];
+    let uploaded: { name: string; type: string; size: number; path: string }[] = [];
     try {
       uploaded = await uploadFiles(empresaActivaId, files);
     } catch (err) {
@@ -221,7 +221,7 @@ export default function DashboardClient() {
     );
 
     const fileRefs = uploaded.map((u) => ({
-      name: u.name, type: u.type, size: u.size, url: u.signedUrl, path: u.path,
+      name: u.name, type: u.type, size: u.size, path: u.path,
     }));
 
     const collected: ExtractedDocData[] = [];

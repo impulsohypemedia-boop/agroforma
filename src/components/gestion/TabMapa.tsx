@@ -576,12 +576,12 @@ export default function TabMapa() {
     try {
       // Upload to Supabase Storage first
       const eId = empresaActivaId ?? "sin-empresa";
-      const { signedUrl } = await uploadFile(eId, blob);
+      const { path } = await uploadFile(eId, blob);
 
       const res = await fetch("/api/gestion/analizar-plano", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: archivo.nombre, url: signedUrl }),
+        body: JSON.stringify({ name: archivo.nombre, path }),
       });
       const respBody = await res.json();
       if (!res.ok) throw new Error(respBody.error ?? `Error ${res.status}`);

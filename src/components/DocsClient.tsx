@@ -45,7 +45,7 @@ export default function DocsClient() {
       // Upload to Supabase Storage first
       const uploaded = await uploadFiles(empresaActivaId, files);
       const fileRefs = uploaded.map((u) => ({
-        name: u.name, type: u.type, size: u.size, url: u.signedUrl, path: u.path,
+        name: u.name, type: u.type, size: u.size, path: u.path,
       }));
       const res = await fetch("/api/analizar-documentos", {
         method: "POST",

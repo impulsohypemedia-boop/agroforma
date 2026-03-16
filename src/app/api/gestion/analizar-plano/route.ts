@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import type { ContentBlockParam, ImageBlockParam, DocumentBlockParam, TextBlockParam } from "@anthropic-ai/sdk/resources/messages";
-import { downloadFromUrl } from "@/lib/download";
+import { downloadFromStorage } from "@/lib/download";
 
 export const maxDuration = 60;
 const client = new Anthropic();
@@ -102,13 +102,13 @@ function inferMediaType(name: string): string {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, url } = body;
+    const { name, path } = body;
 
-    if (!name || !url) {
-      return NextResponse.json({ error: "Falta nombre o URL del archivo" }, { status: 400 });
+    if (!name || !path) {
+      return NextResponse.json({ error: "Falta nombre o path del archivo" }, { status: 400 });
     }
 
-    const buffer = await downloadFromUrl(url);
+    const buffer = await downloadFromStorage(path);
     const nameLower = name.toLowerCase();
 
     const isImage = /\.(jpg|jpeg|png|webp|gif)$/.test(nameLower);

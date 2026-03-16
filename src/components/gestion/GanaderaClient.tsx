@@ -140,12 +140,12 @@ export default function GanaderaClient() {
     try {
       // Upload to Supabase Storage first
       const eId = empresaActivaId ?? "sin-empresa";
-      const { signedUrl } = await uploadFile(eId, file);
+      const { path } = await uploadFile(eId, file);
 
       const res = await fetch("/api/gestion/analizar-hacienda", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: file.name, url: signedUrl }),
+        body: JSON.stringify({ name: file.name, path }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? `Error ${res.status}`);

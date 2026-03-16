@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import ExcelJS from "exceljs";
 import { ExtractedDocData } from "@/types/analysis";
 import { extractOutermostJSON } from "@/lib/extractJSON";
-import { downloadFromUrl } from "@/lib/download";
+import { downloadFromStorage } from "@/lib/download";
 
 export const maxDuration = 60;
 
@@ -113,11 +113,11 @@ Reglas para modo histórico:
 Evaluá cada reporte según estas reglas y la información real de los documentos. Respondé SOLO con el JSON.`;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function buildFileBlocks(fileRefs: { name: string; url: string }[]): Promise<any[]> {
+async function buildFileBlocks(fileRefs: { name: string; path: string }[]): Promise<any[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const blocks: any[] = [];
   for (const ref of fileRefs) {
-    const buffer = await downloadFromUrl(ref.url);
+    const buffer = await downloadFromStorage(ref.path);
     const name = ref.name.toLowerCase();
 
     if (name.endsWith(".pdf")) {

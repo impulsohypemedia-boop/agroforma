@@ -231,12 +231,12 @@ export default function PresentacionesClient() {
     try {
       // Upload to Supabase Storage first
       const eId = empresaActivaId ?? "sin-empresa";
-      const { signedUrl, path } = await uploadFile(eId, blob);
+      const { path } = await uploadFile(eId, blob);
 
       const res = await fetch("/api/presentaciones/analizar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: p.nombre, url: signedUrl }),
+        body: JSON.stringify({ name: p.nombre, path }),
       });
       const json = await res.json();
 
