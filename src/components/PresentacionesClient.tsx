@@ -8,6 +8,7 @@ import {
 import Sidebar from "@/components/Sidebar";
 import { useAppContext } from "@/context/AppContext";
 import { Presentacion, PresentacionTipo } from "@/types/presentacion";
+import { uploadFile } from "@/lib/supabase/storage";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function inferTipo(_name: string): PresentacionTipo {
@@ -164,6 +165,7 @@ export default function PresentacionesClient() {
     setPresentaciones,
     presentacionBlobMap,
     setPresentacionBlobMap,
+    empresaActivaId,
   } = useAppContext();
 
   const [dragging,   setDragging]   = useState(false);
@@ -227,11 +229,15 @@ export default function PresentacionesClient() {
     setError(null);
 
     try {
-      const fd = new FormData();
-      fd.append("file", blob);
-      fd.append("nombre", p.nombre);
+      // Upload to Supabase Storage first
+      const eId = empresaActivaId ?? "sin-empresa";
+      const { signedUrl, path } = await uploadFile(eId, blob);
 
-      const res = await fetch("/api/presentaciones/analizar", { method: "POST", body: fd });
+      const res = await fetch("/api/presentaciones/analizar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: p.nombre, url: signedUrl }),
+      });
       const json = await res.json();
 
       if (!res.ok) throw new Error(json.error ?? "Error al analizar");
@@ -240,7 +246,7 @@ export default function PresentacionesClient() {
       setPresentaciones((prev) =>
         prev.map((item) =>
           item.id === p.id
-            ? { ...item, analisis: resumen, analisisAt: new Date().toISOString() }
+            ? { ...item, analisis: resumen, analisisAt: new Date().toISOString(), storage_path: path }
             : item
         )
       );

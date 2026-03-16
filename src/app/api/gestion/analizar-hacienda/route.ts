@@ -2,24 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import ExcelJS from "exceljs";
 import { extractOutermostJSON } from "@/lib/extractJSON";
+import { downloadFromUrl } from "@/lib/download";
 
 export const maxDuration = 60;
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const file = formData.get("file") as File | null;
-    if (!file) return NextResponse.json({ error: "No se recibió archivo" }, { status: 400 });
+    const body = await request.json();
+    const { name, url } = body;
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const name = file.name.toLowerCase();
+    if (!name || !url) {
+      return NextResponse.json({ error: "Falta nombre o URL del archivo" }, { status: 400 });
+    }
+
+    const buffer = await downloadFromUrl(url);
+    const nameLower = name.toLowerCase();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const content: any[] = [];
     let usePdf = false;
 
-    if (name.endsWith(".pdf")) {
+    if (nameLower.endsWith(".pdf")) {
       usePdf = true;
       content.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: buffer.toString("base64") } });
-    } else if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
+    } else if (nameLower.endsWith(".xlsx") || nameLower.endsWith(".xls")) {
       const wb = new ExcelJS.Workbook();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await wb.xlsx.load(buffer as any);
@@ -35,7 +39,7 @@ export async function POST(request: NextRequest) {
           }).join("\t") + "\n";
         });
       });
-      content.push({ type: "text", text: `=== ${file.name} ===\n${txt}` });
+      content.push({ type: "text", text: `=== ${name} ===\n${txt}` });
     } else {
       return NextResponse.json({ error: "Formato no soportado. Usá Excel o PDF." }, { status: 400 });
     }

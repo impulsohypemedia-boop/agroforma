@@ -7,6 +7,7 @@ import UploadModal from "@/components/UploadModal";
 import DocPreviewModal from "@/components/DocPreviewModal";
 import { useAppContext } from "@/context/AppContext";
 import { UploadedDoc, DocType } from "@/types/document";
+import { uploadFiles } from "@/lib/supabase/storage";
 
 const typeColor: Record<DocType, { bg: string; text: string }> = {
   PDF:  { bg: "#FEE9E9", text: "#C0392B" },
@@ -27,7 +28,7 @@ function formatSize(bytes: number): string {
 }
 
 export default function DocsClient() {
-  const { fileStore, setFileStore, documents, setDocuments, setAnalysisResult, analysisResult } = useAppContext();
+  const { fileStore, setFileStore, documents, setDocuments, setAnalysisResult, analysisResult, empresaActivaId } = useAppContext();
   const [modalOpen,   setModalOpen]   = useState(false);
   const [analyzing,   setAnalyzing]   = useState(false);
   const [error,       setError]       = useState<string | null>(null);
@@ -37,20 +38,35 @@ export default function DocsClient() {
   const [previewFile, setPreviewFile] = useState<File | null>(null);
 
   const runAnalysis = async (files: File[]) => {
+    if (!empresaActivaId) return;
     setAnalyzing(true);
     setAnalysisResult(null);
     try {
-      const fd = new FormData();
-      files.forEach((f) => fd.append("files", f));
-      const res = await fetch("/api/analizar-documentos", { method: "POST", body: fd });
+      // Upload to Supabase Storage first
+      const uploaded = await uploadFiles(empresaActivaId, files);
+      const fileRefs = uploaded.map((u) => ({
+        name: u.name, type: u.type, size: u.size, url: u.signedUrl, path: u.path,
+      }));
+      const res = await fetch("/api/analizar-documentos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ files: fileRefs }),
+      });
       const body = await res.json();
       if (res.ok && body.data) {
         setAnalysisResult(body.data);
       } else {
         setError(body.error ?? "No se pudo analizar los documentos");
       }
-    } catch {
-      setError("Error al conectar con el servidor de análisis");
+      // Update documents with storage paths
+      setDocuments((prev) =>
+        prev.map((doc) => {
+          const match = uploaded.find((u) => u.name === doc.name);
+          return match ? { ...doc, storage_path: match.path } : doc;
+        })
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al conectar con el servidor de análisis");
     } finally {
       setAnalyzing(false);
     }

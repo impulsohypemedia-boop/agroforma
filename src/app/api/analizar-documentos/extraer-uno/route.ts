@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import ExcelJS from "exceljs";
 import { extractOutermostJSON } from "@/lib/extractJSON";
+import { downloadFromUrl } from "@/lib/download";
 
 export const maxDuration = 60;
+
 const SYSTEM_PROMPT = `Sos un analista contable especializado en empresas agropecuarias argentinas.
 Te dan un único documento contable. Extraé TODOS los datos financieros posibles y devolvelos como JSON estructurado.
 
@@ -68,32 +70,32 @@ Si un dato no existe en el documento, dejá null. NO inventes datos. Extraé TOD
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const file = formData.get("file") as File | null;
+    const body = await request.json();
+    const { name, url } = body;
 
-    if (!file) {
-      return NextResponse.json({ error: "No se recibió archivo" }, { status: 400 });
+    if (!name || !url) {
+      return NextResponse.json({ error: "Falta nombre o URL del archivo" }, { status: 400 });
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const name = file.name.toLowerCase();
+    const buffer = await downloadFromUrl(url);
+    const nameLower = name.toLowerCase();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const messageContent: any[] = [];
 
-    if (name.endsWith(".pdf")) {
+    if (nameLower.endsWith(".pdf")) {
       messageContent.push({
         type: "document",
         source: { type: "base64", media_type: "application/pdf", data: buffer.toString("base64") },
       });
-    } else if (name.endsWith(".csv") || file.type === "text/csv") {
-      messageContent.push({ type: "text", text: `=== Archivo: ${file.name} ===\n${buffer.toString("utf-8")}` });
-    } else if (name.endsWith(".xlsx")) {
+    } else if (nameLower.endsWith(".csv")) {
+      messageContent.push({ type: "text", text: `=== Archivo: ${name} ===\n${buffer.toString("utf-8")}` });
+    } else if (nameLower.endsWith(".xlsx")) {
       try {
         const wb = new ExcelJS.Workbook();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await wb.xlsx.load(buffer as any);
-        let txt = `=== Archivo: ${file.name} ===\n`;
+        let txt = `=== Archivo: ${name} ===\n`;
         wb.eachSheet((sheet) => {
           txt += `\n--- Hoja: ${sheet.name} ---\n`;
           sheet.eachRow((row) => {
@@ -107,24 +109,32 @@ export async function POST(request: NextRequest) {
         });
         messageContent.push({ type: "text", text: txt });
       } catch {
-        messageContent.push({ type: "text", text: `=== Archivo: ${file.name} === [No se pudo leer]` });
+        messageContent.push({ type: "text", text: `=== ${name} === [No se pudo leer]` });
       }
     }
 
     messageContent.push({
       type: "text",
-      text: `Extraé todos los datos financieros del documento "${file.name}" y devolvé el JSON completo.`,
+      text: `Extraé todos los datos financieros del documento "${name}" y devolvé el JSON completo.`,
     });
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const hasPdf = nameLower.endsWith(".pdf");
 
-    const message = await client.beta.messages.create({
-      model: "claude-opus-4-6",
-      max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: messageContent }],
-      betas: ["pdfs-2024-09-25"],
-    });
+    const message = hasPdf
+      ? await client.beta.messages.create({
+          model: "claude-opus-4-6",
+          max_tokens: 4096,
+          system: SYSTEM_PROMPT,
+          messages: [{ role: "user", content: messageContent }],
+          betas: ["pdfs-2024-09-25"],
+        })
+      : await client.messages.create({
+          model: "claude-opus-4-6",
+          max_tokens: 4096,
+          system: SYSTEM_PROMPT,
+          messages: [{ role: "user", content: messageContent }],
+        });
 
     const responseText = message.content[0].type === "text" ? message.content[0].text : "";
     const jsonStr = extractOutermostJSON(responseText);
@@ -133,8 +143,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No se pudo extraer datos del documento" }, { status: 500 });
     }
     const data = JSON.parse(jsonStr);
-    // Ensure nombre_archivo matches the actual file name
-    data.nombre_archivo = file.name;
+    data.nombre_archivo = name;
     return NextResponse.json({ data });
   } catch (err) {
     console.error("Error en /api/analizar-documentos/extraer-uno:", err);

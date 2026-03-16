@@ -8,4 +8,5 @@ export type Presentacion = {
   fecha: string;  // ISO date
   analisis?: string;      // AI summary text
   analisisAt?: string;    // ISO date of analysis
+  storage_path?: string;  // Supabase Storage path
 };

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import type { ContentBlockParam, ImageBlockParam, DocumentBlockParam, TextBlockParam } from "@anthropic-ai/sdk/resources/messages";
+import { downloadFromUrl } from "@/lib/download";
 
 export const maxDuration = 60;
 const client = new Anthropic();
@@ -88,17 +89,30 @@ const SYSTEM_PROMPT = `Sos un ingeniero agrónomo argentino. Te dan un plano o m
 
 Extraé todo lo que encuentres. Si algo no está claro, ponelo como null. Devolvé SOLO el JSON.`;
 
+// Infer media type from file name
+function inferMediaType(name: string): string {
+  const n = name.toLowerCase();
+  if (n.endsWith(".pdf")) return "application/pdf";
+  if (n.endsWith(".png")) return "image/png";
+  if (n.endsWith(".webp")) return "image/webp";
+  if (n.endsWith(".gif")) return "image/gif";
+  return "image/jpeg"; // jpg, jpeg
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const file = formData.get("file") as File | null;
-    if (!file) return NextResponse.json({ error: "No se recibió archivo" }, { status: 400 });
+    const body = await request.json();
+    const { name, url } = body;
 
-    const bytes = await file.arrayBuffer();
-    const base64 = Buffer.from(bytes).toString("base64");
+    if (!name || !url) {
+      return NextResponse.json({ error: "Falta nombre o URL del archivo" }, { status: 400 });
+    }
 
-    const isImage = file.type.startsWith("image/");
-    const isPdf   = file.type === "application/pdf";
+    const buffer = await downloadFromUrl(url);
+    const nameLower = name.toLowerCase();
+
+    const isImage = /\.(jpg|jpeg|png|webp|gif)$/.test(nameLower);
+    const isPdf = nameLower.endsWith(".pdf");
 
     if (!isImage && !isPdf) {
       // For Excel/CSV: send the file name and ask Claude to note it can't read binary
@@ -108,7 +122,7 @@ export async function POST(request: NextRequest) {
         system: SYSTEM_PROMPT,
         messages: [{
           role: "user",
-          content: `El archivo "${file.name}" es un Excel/planilla. No se puede renderizar visualmente. Devolvé un JSON con los campos en null y fuente = "${file.name}".`,
+          content: `El archivo "${name}" es un Excel/planilla. No se puede renderizar visualmente. Devolvé un JSON con los campos en null y fuente = "${name}".`,
         }],
       });
       const text = (response.content[0] as { type: string; text: string }).text;
@@ -120,7 +134,7 @@ export async function POST(request: NextRequest) {
 
     const textBlock: TextBlockParam = {
       type: "text",
-      text: `Analizá este archivo y extraé la información del campo. Nombre del archivo: "${file.name}". Devolvé SOLO el JSON.`,
+      text: `Analizá este archivo y extraé la información del campo. Nombre del archivo: "${name}". Devolvé SOLO el JSON.`,
     };
 
     let mediaBlock: ContentBlockParam;
@@ -130,17 +144,18 @@ export async function POST(request: NextRequest) {
         source: {
           type: "base64",
           media_type: "application/pdf",
-          data: base64,
+          data: buffer.toString("base64"),
         },
       };
       mediaBlock = docBlock;
     } else {
+      const mediaType = inferMediaType(name);
       const imgBlock: ImageBlockParam = {
         type: "image",
         source: {
           type: "base64",
-          media_type: file.type as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
-          data: base64,
+          media_type: mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+          data: buffer.toString("base64"),
         },
       };
       mediaBlock = imgBlock;

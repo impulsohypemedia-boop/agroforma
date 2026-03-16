@@ -13,6 +13,7 @@ import ReportPreviewModal from "@/components/ReportPreviewModal";
 import NuevaEmpresaModal from "@/components/NuevaEmpresaModal";
 import { UploadedDoc } from "@/types/document";
 import { GeneratedReport } from "@/types/report";
+import { uploadFiles } from "@/lib/supabase/storage";
 
 // ─── Route map ────────────────────────────────────────────────────────────────
 const ROUTE_MAP: Record<string, { reportId: string; apiPath: string; downloadPath: string }> = {
@@ -101,7 +102,7 @@ export default function DashboardClient() {
     analysisResult, setAnalysisResult,
     extractedDocsData, setExtractedDocsData,
     campos, planSiembra, campanaActual,
-    empresas,
+    empresas, empresaActivaId,
   } = useAppContext();
 
   const [modalOpen,       setModalOpen]       = useState(false);
@@ -196,20 +197,45 @@ export default function DashboardClient() {
 
   // ── Upload & extraction flow ───────────────────────────────────────────────
   const runAnalysisWithProgress = async (files: File[]) => {
+    if (!empresaActivaId) return;
     setAnalyzing(true);
     setAnalysisResult(null);
     setExtractedDocsData([]);
 
+    // Upload all files to Supabase Storage first
+    let uploaded: { name: string; type: string; size: number; path: string; signedUrl: string }[] = [];
+    try {
+      uploaded = await uploadFiles(empresaActivaId, files);
+    } catch (err) {
+      setGenError(err instanceof Error ? err.message : "Error al subir archivos");
+      setAnalyzing(false);
+      return;
+    }
+
+    // Update documents with storage paths
+    setDocuments((prev) =>
+      prev.map((doc) => {
+        const match = uploaded.find((u) => u.name === doc.name);
+        return match ? { ...doc, storage_path: match.path } : doc;
+      })
+    );
+
+    const fileRefs = uploaded.map((u) => ({
+      name: u.name, type: u.type, size: u.size, url: u.signedUrl, path: u.path,
+    }));
+
     const collected: ExtractedDocData[] = [];
 
     // Step 1: extract each file individually
-    if (files.length > 1) {
-      for (let i = 0; i < files.length; i++) {
-        setExtractProgress({ current: i + 1, total: files.length });
+    if (fileRefs.length > 1) {
+      for (let i = 0; i < fileRefs.length; i++) {
+        setExtractProgress({ current: i + 1, total: fileRefs.length });
         try {
-          const fd = new FormData();
-          fd.append("file", files[i]);
-          const res = await fetch("/api/analizar-documentos/extraer-uno", { method: "POST", body: fd });
+          const res = await fetch("/api/analizar-documentos/extraer-uno", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(fileRefs[i]),
+          });
           const body = await res.json();
           if (res.ok && body.data) collected.push(body.data as ExtractedDocData);
         } catch {
@@ -224,24 +250,27 @@ export default function DashboardClient() {
     try {
       let res: Response;
       if (collected.length > 0) {
-        // Use pre-extracted JSON
         res = await fetch("/api/analizar-documentos", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ extractedData: collected }),
         });
       } else {
-        // Single file or fallback: send raw file
-        const fd = new FormData();
-        files.forEach((f) => fd.append("files", f));
-        res = await fetch("/api/analizar-documentos", { method: "POST", body: fd });
+        // Single file: send URL reference
+        res = await fetch("/api/analizar-documentos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ files: fileRefs }),
+        });
 
         // Also extract the single file for report generation
-        if (files.length === 1) {
+        if (fileRefs.length === 1) {
           try {
-            const fd2 = new FormData();
-            fd2.append("file", files[0]);
-            const r2 = await fetch("/api/analizar-documentos/extraer-uno", { method: "POST", body: fd2 });
+            const r2 = await fetch("/api/analizar-documentos/extraer-uno", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(fileRefs[0]),
+            });
             const b2 = await r2.json();
             if (r2.ok && b2.data) {
               collected.push(b2.data as ExtractedDocData);

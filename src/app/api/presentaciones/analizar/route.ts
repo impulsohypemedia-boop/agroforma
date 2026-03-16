@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { downloadFromUrl } from "@/lib/download";
 
 export const maxDuration = 60;
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const file = formData.get("file") as File | null;
-    if (!file) return NextResponse.json({ error: "No se recibió archivo" }, { status: 400 });
+    const body = await request.json();
+    const { name, url } = body;
 
-    if (!file.name.toLowerCase().endsWith(".pdf")) {
+    if (!name || !url) {
+      return NextResponse.json({ error: "Falta nombre o URL del archivo" }, { status: 400 });
+    }
+
+    if (!name.toLowerCase().endsWith(".pdf")) {
       return NextResponse.json({ error: "Solo se aceptan archivos PDF" }, { status: 400 });
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const buffer = await downloadFromUrl(url);
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
     const message = await client.beta.messages.create({
@@ -29,7 +33,7 @@ export async function POST(request: NextRequest) {
           },
           {
             type: "text",
-            text: `Analizá este documento: "${file.name}" y devolvé un análisis estructurado con: tipo de documento, resumen del contenido, datos clave (fechas, números, cultivos, campos, recomendaciones), y su relevancia para una empresa agropecuaria argentina.`,
+            text: `Analizá este documento: "${name}" y devolvé un análisis estructurado con: tipo de documento, resumen del contenido, datos clave (fechas, números, cultivos, campos, recomendaciones), y su relevancia para una empresa agropecuaria argentina.`,
           },
         ],
       }],

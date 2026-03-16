@@ -3,8 +3,10 @@ import Anthropic from "@anthropic-ai/sdk";
 import ExcelJS from "exceljs";
 import { ExtractedDocData } from "@/types/analysis";
 import { extractOutermostJSON } from "@/lib/extractJSON";
+import { downloadFromUrl } from "@/lib/download";
 
 export const maxDuration = 60;
+
 const SYSTEM_PROMPT = `Sos un analista especializado en documentación de empresas agropecuarias argentinas. Te van a dar uno o más documentos. Analizalos y devolvé un JSON con:
 
 {
@@ -110,73 +112,85 @@ Reglas para modo histórico:
 
 Evaluá cada reporte según estas reglas y la información real de los documentos. Respondé SOLO con el JSON.`;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function buildFileBlocks(fileRefs: { name: string; url: string }[]): Promise<any[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const blocks: any[] = [];
+  for (const ref of fileRefs) {
+    const buffer = await downloadFromUrl(ref.url);
+    const name = ref.name.toLowerCase();
+
+    if (name.endsWith(".pdf")) {
+      blocks.push({
+        type: "document",
+        source: { type: "base64", media_type: "application/pdf", data: buffer.toString("base64") },
+      });
+    } else if (name.endsWith(".csv")) {
+      blocks.push({ type: "text", text: `=== Archivo: ${ref.name} ===\n${buffer.toString("utf-8")}` });
+    } else if (name.endsWith(".xlsx")) {
+      try {
+        const wb = new ExcelJS.Workbook();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await wb.xlsx.load(buffer as any);
+        let txt = `=== Archivo: ${ref.name} ===\n`;
+        wb.eachSheet((sheet) => {
+          txt += `\n--- Hoja: ${sheet.name} ---\n`;
+          sheet.eachRow((row) => {
+            txt += (row.values as ExcelJS.CellValue[]).slice(1).map((v) => {
+              if (v === null || v === undefined) return "";
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              if (typeof v === "object" && (v as any).result !== undefined) return (v as any).result;
+              return v.toString();
+            }).join("\t") + "\n";
+          });
+        });
+        blocks.push({ type: "text", text: txt });
+      } catch {
+        blocks.push({ type: "text", text: `=== ${ref.name} === [No se pudo leer]` });
+      }
+    }
+  }
+  return blocks;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const contentType = request.headers.get("content-type") ?? "";
+    const body = await request.json();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const messageContent: any[] = [];
 
-    if (contentType.includes("application/json")) {
-      // New path: receive pre-extracted data from each document
-      const body = await request.json();
-      const extractedData: ExtractedDocData[] = body.extractedData ?? [];
-      if (extractedData.length === 0) {
-        return NextResponse.json({ error: "No se recibieron datos extraídos" }, { status: 400 });
-      }
+    if (body.extractedData && body.extractedData.length > 0) {
+      const extractedData: ExtractedDocData[] = body.extractedData;
       messageContent.push({
         type: "text",
         text: `Datos extraídos de ${extractedData.length} documento(s):\n${JSON.stringify(extractedData, null, 2)}\n\nAnalizá estos datos y devolvé el JSON de análisis.`,
       });
-    } else {
-      // Legacy path: receive raw files (single-file uploads, backward compat)
-      const formData = await request.formData();
-      const files = formData.getAll("files") as File[];
-      if (files.length === 0) {
-        return NextResponse.json({ error: "No se recibieron archivos" }, { status: 400 });
-      }
-      for (const file of files) {
-        const buffer = Buffer.from(await file.arrayBuffer());
-        const name = file.name.toLowerCase();
-        if (name.endsWith(".pdf")) {
-          messageContent.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: buffer.toString("base64") } });
-        } else if (name.endsWith(".csv") || file.type === "text/csv") {
-          messageContent.push({ type: "text", text: `=== Archivo: ${file.name} ===\n${buffer.toString("utf-8")}` });
-        } else if (name.endsWith(".xlsx")) {
-          try {
-            const wb = new ExcelJS.Workbook();
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await wb.xlsx.load(buffer as any);
-            let txt = `=== Archivo: ${file.name} ===\n`;
-            wb.eachSheet((sheet) => {
-              txt += `\n--- Hoja: ${sheet.name} ---\n`;
-              sheet.eachRow((row) => {
-                txt += (row.values as ExcelJS.CellValue[]).slice(1).map((v) => {
-                  if (v === null || v === undefined) return "";
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  if (typeof v === "object" && (v as any).result !== undefined) return (v as any).result;
-                  return v.toString();
-                }).join("\t") + "\n";
-              });
-            });
-            messageContent.push({ type: "text", text: txt });
-          } catch {
-            messageContent.push({ type: "text", text: `=== ${file.name} === [No se pudo leer]` });
-          }
-        }
-      }
+    } else if (body.files && body.files.length > 0) {
+      const blocks = await buildFileBlocks(body.files);
+      messageContent.push(...blocks);
       messageContent.push({ type: "text", text: "Analizá los documentos anteriores y devolvé el JSON de análisis." });
+    } else {
+      return NextResponse.json({ error: "No se recibieron archivos ni datos" }, { status: 400 });
     }
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const hasPdf = messageContent.some((b) => b.type === "document");
 
-    const message = await client.beta.messages.create({
-      model: "claude-opus-4-6",
-      max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: messageContent }],
-      betas: ["pdfs-2024-09-25"],
-    });
+    const message = hasPdf
+      ? await client.beta.messages.create({
+          model: "claude-opus-4-6",
+          max_tokens: 4096,
+          system: SYSTEM_PROMPT,
+          messages: [{ role: "user", content: messageContent }],
+          betas: ["pdfs-2024-09-25"],
+        })
+      : await client.messages.create({
+          model: "claude-opus-4-6",
+          max_tokens: 4096,
+          system: SYSTEM_PROMPT,
+          messages: [{ role: "user", content: messageContent }],
+        });
 
     const text = message.content[0].type === "text" ? message.content[0].text : "";
     const jsonStr = extractOutermostJSON(text);
@@ -190,7 +204,7 @@ export async function POST(request: NextRequest) {
     try {
       parsed = JSON.parse(jsonStr);
     } catch (parseErr) {
-      console.error("JSON.parse failed:", parseErr, "\nRaw jsonStr:", jsonStr.slice(0, 500));
+      console.error("JSON.parse failed:", parseErr, "\nRaw:", jsonStr.slice(0, 500));
       return NextResponse.json({ error: "Respuesta de Claude no es JSON válido" }, { status: 500 });
     }
 

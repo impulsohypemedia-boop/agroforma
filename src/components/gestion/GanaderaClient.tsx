@@ -9,6 +9,7 @@ import {
   CATEGORIAS_HACIENDA,
 } from "@/types/gestion";
 import { Plus, Trash2, X, Beef, Upload, Loader2, Bell } from "lucide-react";
+import { uploadFile } from "@/lib/supabase/storage";
 
 // ─── Manual Add Modal ─────────────────────────────────────────────────────────
 function ManualModal({
@@ -101,7 +102,7 @@ function ManualModal({
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function GanaderaClient() {
-  const { campos, stockHacienda, setStockHacienda } = useAppContext();
+  const { campos, stockHacienda, setStockHacienda, empresaActivaId } = useAppContext();
 
   const [dragging,      setDragging]      = useState(false);
   const [uploading,     setUploading]     = useState(false);
@@ -137,9 +138,15 @@ export default function GanaderaClient() {
     setUploading(true);
     setUploadError(null);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/gestion/analizar-hacienda", { method: "POST", body: fd });
+      // Upload to Supabase Storage first
+      const eId = empresaActivaId ?? "sin-empresa";
+      const { signedUrl } = await uploadFile(eId, file);
+
+      const res = await fetch("/api/gestion/analizar-hacienda", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, url: signedUrl }),
+      });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? `Error ${res.status}`);
 

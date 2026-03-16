@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import ExcelJS from "exceljs";
 
 export const maxDuration = 60;
 const BASE_SYSTEM = `Sos el asistente de AgroForma, la inteligencia artificial de la empresa agropecuaria argentina.
@@ -139,85 +138,26 @@ function buildSystemPrompt(ctx: Record<string, any> | null): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
+    const body = await request.json();
 
-    const messagesRaw       = formData.get("messages")        as string;
-    const empresaContextRaw = formData.get("empresa_context") as string | null;
-    const files             = formData.getAll("files")        as File[];
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const conversationHistory: { role: "user" | "assistant"; content: string }[] =
-      JSON.parse(messagesRaw ?? "[]");
+      body.messages ?? [];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let empresaContext: Record<string, any> | null = null;
-    if (empresaContextRaw) {
-      try { empresaContext = JSON.parse(empresaContextRaw); } catch { /* ignore */ }
-    }
+    const empresaContext: Record<string, any> | null = body.empresa_context ?? null;
+    const presentacionesCtx: string | null = body.presentaciones_context ?? null;
 
-    console.log("[chat] messages:", conversationHistory.length, "| empresa:", empresaContext?.empresa?.nombre ?? "sin contexto", "| files:", files.length);
+    console.log("[chat] messages:", conversationHistory.length, "| empresa:", empresaContext?.empresa?.nombre ?? "sin contexto");
     console.log("[chat] último mensaje:", conversationHistory.at(-1)?.content?.slice(0, 100));
 
-    const systemPrompt = buildSystemPrompt(empresaContext);
-
-    // Build file content blocks
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const fileBlocks: any[] = [];
-    let hasPdfFiles = false;
-
-    for (const file of files) {
-      const buffer = Buffer.from(await file.arrayBuffer());
-      const name = file.name.toLowerCase();
-
-      if (name.endsWith(".pdf")) {
-        hasPdfFiles = true;
-        fileBlocks.push({
-          type: "document",
-          source: { type: "base64", media_type: "application/pdf", data: buffer.toString("base64") },
-        });
-      } else if (name.endsWith(".csv") || file.type === "text/csv") {
-        fileBlocks.push({ type: "text", text: `=== Archivo: ${file.name} ===\n${buffer.toString("utf-8")}` });
-      } else if (name.endsWith(".xlsx")) {
-        try {
-          const wb = new ExcelJS.Workbook();
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await wb.xlsx.load(buffer as any);
-          let txt = `=== Archivo: ${file.name} ===\n`;
-          wb.eachSheet((sheet) => {
-            txt += `\n--- Hoja: ${sheet.name} ---\n`;
-            sheet.eachRow((row) => {
-              txt += (row.values as ExcelJS.CellValue[]).slice(1).map((v) => {
-                if (v === null || v === undefined) return "";
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                if (typeof v === "object" && (v as any).result !== undefined) return (v as any).result;
-                return v.toString();
-              }).join("\t") + "\n";
-            });
-          });
-          fileBlocks.push({ type: "text", text: txt });
-        } catch {
-          fileBlocks.push({ type: "text", text: `=== ${file.name} === [No se pudo leer]` });
-        }
-      }
+    let systemPrompt = buildSystemPrompt(empresaContext);
+    if (presentacionesCtx) {
+      systemPrompt += `\n\nCONTEXTO DE PRESENTACIONES Y DOCUMENTOS ADICIONALES:\n${presentacionesCtx}`;
     }
 
     // Build Anthropic messages array
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const apiMessages: any[] = [];
-
-    if (fileBlocks.length > 0) {
-      apiMessages.push({
-        role: "user",
-        content: [
-          ...fileBlocks,
-          { type: "text", text: "Estos son los documentos de la empresa. Tenelos en cuenta para responder mis preguntas." },
-        ],
-      });
-      apiMessages.push({
-        role: "assistant",
-        content: "Entendido. Analicé los documentos y estoy listo para responder tus preguntas sobre la empresa.",
-      });
-    }
 
     for (const msg of conversationHistory) {
       apiMessages.push({ role: msg.role, content: msg.content });
@@ -230,20 +170,14 @@ export async function POST(request: NextRequest) {
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-    console.log("[chat] llamando a Claude, mensajes API:", apiMessages.length, "| system length:", systemPrompt.length, "| pdf files:", hasPdfFiles);
+    console.log("[chat] llamando a Claude, mensajes API:", apiMessages.length, "| system length:", systemPrompt.length);
 
-    // Use beta endpoint only when PDF files are present
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const streamParams: any = {
+    const stream = client.messages.stream({
       model: "claude-opus-4-6",
       max_tokens: 8192,
       system: systemPrompt,
       messages: apiMessages,
-    };
-
-    const stream = hasPdfFiles
-      ? client.beta.messages.stream({ ...streamParams, betas: ["pdfs-2024-09-25"] })
-      : client.messages.stream(streamParams);
+    });
 
     const encoder = new TextEncoder();
     const readable = new ReadableStream({

@@ -29,6 +29,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { uploadFile } from "@/lib/supabase/storage";
 
 // ─── Dynamic Leaflet map (no SSR) ─────────────────────────────────────────────
 const LeafletMap = dynamic(() => import("./LeafletMap"), {
@@ -516,6 +517,7 @@ export default function TabMapa() {
     campos, setCampos,
     planSiembra, setPlanSiembra,
     campanaActual,
+    empresaActivaId,
   } = useAppContext();
 
   const [dragging,     setDragging]     = useState(false);
@@ -572,13 +574,19 @@ export default function TabMapa() {
     setAnalyzing(archivo.id);
     setAnalyzeError(null);
     try {
-      const fd = new FormData();
-      fd.append("file", blob);
-      const res = await fetch("/api/gestion/analizar-plano", { method: "POST", body: fd });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? `Error ${res.status}`);
+      // Upload to Supabase Storage first
+      const eId = empresaActivaId ?? "sin-empresa";
+      const { signedUrl } = await uploadFile(eId, blob);
+
+      const res = await fetch("/api/gestion/analizar-plano", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: archivo.nombre, url: signedUrl }),
+      });
+      const respBody = await res.json();
+      if (!res.ok) throw new Error(respBody.error ?? `Error ${res.status}`);
       setArchivosPlanos((prev) =>
-        prev.map((a) => a.id === archivo.id ? { ...a, analizado: true, datos: body.data } : a)
+        prev.map((a) => a.id === archivo.id ? { ...a, analizado: true, datos: respBody.data } : a)
       );
       setExpanded(archivo.id);
     } catch (err) {

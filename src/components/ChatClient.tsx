@@ -576,7 +576,7 @@ const SUGGESTIONS = [
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function ChatClient() {
   const {
-    fileStore, empresaActiva, empresaActivaId, generatedReports, setEscenarios,
+    fileStore, documents, empresaActiva, empresaActivaId, generatedReports, setEscenarios,
     presentaciones, presentacionBlobMap,
     analysisResult, extractedDocsData,
     campos, planSiembra, campanaActual,
@@ -734,9 +734,6 @@ export default function ChatClient() {
     const historyForSend = [...messages, userMsg];
 
     try {
-      const fd = new FormData();
-      fd.append("messages", JSON.stringify(historyForSend));
-
       // Build full empresa context for the API
       const empresaContext = {
         empresa:             empresaActiva,
@@ -750,30 +747,37 @@ export default function ChatClient() {
         movimientosHacienda: movimientosHacienda.slice(-50),
         archivosPlanos,
       };
-      fd.append("empresa_context", JSON.stringify(empresaContext));
 
-      fileStore.forEach((f) => fd.append("files", f));
+      // Build file references from documents with storage paths
+      const fileUrls = documents
+        .filter((d) => d.storage_path)
+        .map((d) => ({ name: d.name, url: "", path: d.storage_path! }));
 
-      // Include presentaciones summaries as text context
+      // Presentaciones context
+      let presentacionesContext: string | undefined;
       if (presentaciones.length > 0) {
         const analyzed = presentaciones.filter((p) => p.analisis);
         if (analyzed.length > 0) {
-          const ctx = analyzed
+          presentacionesContext = analyzed
             .map((p) => `=== ${p.nombre} ===\n${p.analisis}`)
             .join("\n\n");
-          fd.append("presentaciones_context", ctx);
         }
-        // Include blob files for unanalyzed PDFs
-        analyzed.forEach((p) => {
-          const blob = presentacionBlobMap[p.id];
-          if (blob && p.tipo === "pdf" && !p.analisis) {
-            fd.append("files", blob);
-          }
-        });
       }
 
+      const payload = {
+        messages: historyForSend,
+        empresa_context: empresaContext,
+        file_refs: fileUrls,
+        presentaciones_context: presentacionesContext,
+      };
+
       abortRef.current = new AbortController();
-      const res = await fetch("/api/chat", { method: "POST", body: fd, signal: abortRef.current.signal });
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: abortRef.current.signal,
+      });
       if (!res.ok || !res.body) throw new Error("Error al conectar con el asistente");
 
       const reader  = res.body.getReader();
