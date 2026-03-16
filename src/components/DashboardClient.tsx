@@ -110,7 +110,7 @@ export default function DashboardClient() {
   const [analyzing,       setAnalyzing]       = useState(false);
   const [extractProgress, setExtractProgress] = useState<{ current: number; total: number } | null>(null);
   const [generating,      setGenerating]      = useState<string | null>(null);
-  const [bulkProgress,    setBulkProgress]    = useState<{ current: number; total: number } | null>(null);
+  const [bulkProgress,    setBulkProgress]    = useState<{ current: number; total: number; name: string } | null>(null);
   const [genError,        setGenError]        = useState<string | null>(null);
   const [previewReport,   setPreviewReport]   = useState<GeneratedReport | null>(null);
 
@@ -188,9 +188,13 @@ export default function DashboardClient() {
     if (!valid.length || generating || bulkProgress) return;
     setGenError(null);
     for (let i = 0; i < valid.length; i++) {
-      setBulkProgress({ current: i + 1, total: valid.length });
-      try { await generateOne(valid[i]); }
+      const id = valid[i];
+      const nombre = analysisResult?.reportes_posibles.find((r) => r.id === id)?.nombre ?? id;
+      setBulkProgress({ current: i + 1, total: valid.length, name: nombre });
+      setGenerating(id);
+      try { await generateOne(id); }
       catch (err) { setGenError(err instanceof Error ? err.message : "Error al generar"); }
+      finally { setGenerating(null); }
     }
     setBulkProgress(null);
   };

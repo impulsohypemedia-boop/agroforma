@@ -412,7 +412,7 @@ function UnavailableReportCard({
 type Props = {
   analysis: AnalysisResult;
   generating: string | null;
-  bulkProgress: { current: number; total: number } | null;
+  bulkProgress: { current: number; total: number; name: string } | null;
   hasFiles: boolean;
   latestByAnalysisId: Record<string, GeneratedReport>;
   onGenerate: (analysisId: string) => void;
@@ -520,7 +520,7 @@ export default function DocumentAnalysis({
                 <div className="flex items-center gap-2">
                   <Loader2 size={13} className="animate-spin" style={{ color: "#3D7A1C" }} />
                   <span className="text-xs font-medium" style={{ color: "#3D7A1C" }}>
-                    Generando {bulkProgress.current} de {bulkProgress.total}…
+                    Generando {bulkProgress.name} ({bulkProgress.current}/{bulkProgress.total})…
                   </span>
                 </div>
               )}
