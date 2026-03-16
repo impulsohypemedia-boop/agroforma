@@ -179,14 +179,14 @@ export async function POST(request: NextRequest) {
 
     const message = hasPdf
       ? await client.beta.messages.create({
-          model: "claude-opus-4-6",
+          model: "claude-sonnet-4-6",
           max_tokens: 4096,
           system: SYSTEM_PROMPT,
           messages: [{ role: "user", content: messageContent }],
           betas: ["pdfs-2024-09-25"],
         })
       : await client.messages.create({
-          model: "claude-opus-4-6",
+          model: "claude-sonnet-4-6",
           max_tokens: 4096,
           system: SYSTEM_PROMPT,
           messages: [{ role: "user", content: messageContent }],

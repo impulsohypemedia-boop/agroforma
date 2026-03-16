@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
     if (!isImage && !isPdf) {
       // For Excel/CSV: send the file name and ask Claude to note it can't read binary
       const response = await client.messages.create({
-        model: "claude-opus-4-6",
+        model: "claude-sonnet-4-6",
         max_tokens: 2048,
         system: SYSTEM_PROMPT,
         messages: [{
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
     }
 
     const response = await client.messages.create({
-      model: "claude-opus-4-6",
+      model: "claude-sonnet-4-6",
       max_tokens: 4096,
       system: SYSTEM_PROMPT,
       messages: [{

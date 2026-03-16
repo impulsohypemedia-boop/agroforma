@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import {
   LayoutDashboard, FileText, BarChart2, MessageSquare,
-  Settings, LayoutGrid, Sprout, Beef, ChevronDown, Building2, Check, Plus, Layers, FlaskConical, MonitorPlay, LogOut
+  Settings, LayoutGrid, Sprout, Beef, ChevronDown, Building2, Check, Plus, Layers, FlaskConical, MonitorPlay, LogOut, Wallet
 } from "lucide-react";
 import { useAppContext } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
@@ -20,7 +20,8 @@ const navItems = [
 ];
 
 const disabledItems = [
-  { label: "Presentaciones", icon: MonitorPlay },
+  { label: "Presentaciones", icon: MonitorPlay, tooltip: "Esta función estará disponible próximamente" },
+  { label: "Inversiones", icon: Wallet, tooltip: "Próximamente: seguimiento de FCIs, bonos, plazos fijos y cauciones" },
 ];
 
 const gestionSubItems = [
@@ -150,7 +151,7 @@ export default function Sidebar() {
                 key={item.label}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-not-allowed"
                 style={{ color: "rgba(255,255,255,0.25)" }}
-                title="Esta función estará disponible próximamente"
+                title={item.tooltip}
               >
                 <Icon size={18} />
                 <span className="flex-1">{item.label}</span>

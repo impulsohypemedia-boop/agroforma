@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
     console.log("[chat] llamando a Claude, mensajes API:", apiMessages.length, "| system length:", systemPrompt.length);
 
     const stream = client.messages.stream({
-      model: "claude-opus-4-6",
+      model: "claude-sonnet-4-6",
       max_tokens: 8192,
       system: systemPrompt,
       messages: apiMessages,

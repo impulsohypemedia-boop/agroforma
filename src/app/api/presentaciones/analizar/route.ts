@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
     const message = await client.beta.messages.create({
-      model: "claude-opus-4-6",
+      model: "claude-sonnet-4-6",
       max_tokens: 2048,
       system:
         "Sos un analista de documentos para empresas agropecuarias argentinas. Extraé información clave de presentaciones, informes y estudios. Respondé en español argentino, de forma clara y estructurada.",

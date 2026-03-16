@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const msg = await client.beta.messages.create({
-      model: "claude-opus-4-6",
+      model: "claude-sonnet-4-6",
       max_tokens: 2048,
       system: `Sos un analista ganadero argentino. Te dan una planilla de stock de hacienda. Extraé el inventario y devolvé SOLO este JSON (sin markdown):
 {"categorias": [{"categoria": "Vacas", "cabezas_propias": 120, "cabezas_terceros": 0, "raza": "Aberdeen Angus", "boleto_camara": null, "peso_promedio": 450}]}
