@@ -17,7 +17,10 @@ const navItems = [
   { label: "Documentos", icon: FileText,         href: "/docs"    },
   { label: "Reportes",   icon: BarChart2,        href: "/reportes"},
   { label: "Asistente",      icon: MessageSquare, href: "/chat"          },
-  { label: "Presentaciones", icon: MonitorPlay,   href: "/presentaciones" },
+];
+
+const disabledItems = [
+  { label: "Presentaciones", icon: MonitorPlay },
 ];
 
 const gestionSubItems = [
@@ -136,6 +139,28 @@ export default function Sidebar() {
                   {item.label}
                 </div>
               </Link>
+            );
+          })}
+
+          {/* Disabled items */}
+          {disabledItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <div
+                key={item.label}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-not-allowed"
+                style={{ color: "rgba(255,255,255,0.25)" }}
+                title="Esta función estará disponible próximamente"
+              >
+                <Icon size={18} />
+                <span className="flex-1">{item.label}</span>
+                <span
+                  className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+                  style={{ backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.30)" }}
+                >
+                  Próximamente
+                </span>
+              </div>
             );
           })}
 

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useAppContext } from "@/context/AppContext";
 import { ExtractedDocData } from "@/types/analysis";
-import { Upload, Loader2, Bell, Building2 } from "lucide-react";
+import { Upload, Loader2, Bell, Building2, FileText, FileSpreadsheet, Wheat, Landmark, ClipboardList, Beef } from "lucide-react";
 import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import KpiCard from "@/components/dashboard/KpiCard";
@@ -560,25 +560,121 @@ export default function DashboardClient() {
                 onUpload={() => setModalOpen(true)}
               />
             ) : documents.length === 0 ? (
-              <section>
-                <div
-                  className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed py-14"
-                  style={{ borderColor: "#D6D1C8", backgroundColor: "#FAFAF8" }}
-                >
-                  <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: "#EBF3E8" }}>
-                    <Upload size={22} style={{ color: "#3D7A1C" }} />
-                  </div>
-                  <p className="font-medium text-sm" style={{ color: "#1A1A1A" }}>Subí documentos para comenzar</p>
-                  <p className="text-xs text-center max-w-xs" style={{ color: "#9B9488" }}>
-                    Claude analizará automáticamente qué reportes son posibles con tu documentación
+              <section className="space-y-6">
+                {/* Header */}
+                <div className="text-center">
+                  <h2 className="text-xl font-bold mb-2" style={{ color: "#1A1A1A" }}>
+                    Subí la documentación de tu empresa para comenzar
+                  </h2>
+                  <p className="text-sm" style={{ color: "#9B9488" }}>
+                    AgroForma analiza tus documentos y genera reportes automáticamente
                   </p>
+                </div>
+
+                {/* Upload button */}
+                <div className="flex justify-center">
                   <button
                     onClick={() => setModalOpen(true)}
-                    className="mt-1 px-5 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90"
+                    className="flex items-center gap-2 px-7 py-3 rounded-xl text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition-opacity"
                     style={{ backgroundColor: "#3D7A1C" }}
                   >
+                    <Upload size={18} />
                     Subir documentos
                   </button>
+                </div>
+
+                {/* Document type cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[
+                    {
+                      icon: FileText,
+                      iconColor: "#C0392B",
+                      iconBg: "#FEE2E2",
+                      title: "Balances y estados contables",
+                      desc: "PDF del balance anual, estado de resultados, situación patrimonial",
+                      badge: "Recomendado para empezar",
+                      genera: "Situación patrimonial, ratios, margen bruto, bridge de resultados",
+                    },
+                    {
+                      icon: Wheat,
+                      iconColor: "#3D7A1C",
+                      iconBg: "#EBF3E8",
+                      title: "Plan de siembra",
+                      desc: "Excel con hectáreas por cultivo, rindes, precios y costos por campo",
+                      genera: "Proyección de campaña, ranking de campos, punto de equilibrio",
+                    },
+                    {
+                      icon: Beef,
+                      iconColor: "#8B5E34",
+                      iconBg: "#FEF3C7",
+                      title: "Planilla de hacienda",
+                      desc: "Excel con stock de hacienda por categoría y campo",
+                      genera: "Valuación del rodeo, sección ganadera de calificación bancaria",
+                    },
+                    {
+                      icon: ClipboardList,
+                      iconColor: "#D97706",
+                      iconBg: "#FEF9C3",
+                      title: "Liquidaciones de granos",
+                      desc: "PDF de liquidaciones primarias del acopio",
+                      genera: "Análisis de comercialización, posición de granos",
+                    },
+                    {
+                      icon: Landmark,
+                      iconColor: "#2563EB",
+                      iconBg: "#DBEAFE",
+                      title: "Extractos bancarios",
+                      desc: "PDF de extractos de cuenta de cualquier banco",
+                      genera: "Flujo de caja real, saldos por banco",
+                    },
+                    {
+                      icon: FileSpreadsheet,
+                      iconColor: "#059669",
+                      iconBg: "#D1FAE5",
+                      title: "Presupuesto de campaña",
+                      desc: "Excel con costos e ingresos proyectados",
+                      genera: "Presupuesto vs real, control de gestión",
+                    },
+                  ].map((card) => {
+                    const Icon = card.icon;
+                    return (
+                      <div
+                        key={card.title}
+                        className="rounded-xl border p-5 flex flex-col gap-3"
+                        style={{ borderColor: "#E8E5DE", backgroundColor: "#FFFFFF" }}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                            style={{ backgroundColor: card.iconBg }}
+                          >
+                            <Icon size={20} style={{ color: card.iconColor }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>{card.title}</p>
+                            {card.badge && (
+                              <span
+                                className="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                                style={{ backgroundColor: "#EBF3E8", color: "#3D7A1C" }}
+                              >
+                                {card.badge}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-xs leading-relaxed" style={{ color: "#6B6560" }}>{card.desc}</p>
+                        <div
+                          className="rounded-lg px-3 py-2 mt-auto"
+                          style={{ backgroundColor: "#F9F8F4" }}
+                        >
+                          <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: "#9B9488" }}>
+                            Qué genera
+                          </p>
+                          <p className="text-xs" style={{ color: "#3D7A1C" }}>{card.genera}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
             ) : null}
