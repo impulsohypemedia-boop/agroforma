@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { extractOutermostJSON } from "@/lib/extractJSON";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 const SYSTEM_PROMPT = `Sos un contador especializado en empresas agropecuarias argentinas. Te van a dar documentos contables (balances, estados de situación patrimonial, anexos, notas). Tu tarea es extraer toda la información y generar un JSON estructurado con la Situación Patrimonial completa.
 
 El JSON debe tener esta estructura:

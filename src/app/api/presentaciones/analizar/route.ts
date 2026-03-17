@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { downloadFromStorage } from "@/lib/download";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

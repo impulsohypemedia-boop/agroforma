@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { extractOutermostJSON } from "@/lib/extractJSON";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 const SYSTEM_PROMPT = `Sos un analista financiero experto en empresas agropecuarias argentinas. Te dan múltiples balances de la misma empresa de distintos ejercicios. Tu tarea es analizar la evolución completa y devolver un JSON con:
 
 {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { extractOutermostJSON } from "@/lib/extractJSON";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 const SYSTEM_PROMPT = `Sos un analista financiero especializado en empresas agropecuarias argentinas. Te van a dar documentos contables (balances, estados de situación patrimonial, estados de resultados). Tu tarea es calcular los principales ratios financieros y devolverlos en un JSON estructurado.
 
 Calculá los siguientes ratios agrupados por categoría:

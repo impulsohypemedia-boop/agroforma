@@ -4,7 +4,7 @@ import ExcelJS from "exceljs";
 import { extractOutermostJSON } from "@/lib/extractJSON";
 import { downloadFromStorage } from "@/lib/download";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const SYSTEM_PROMPT = `Sos un analista contable especializado en empresas agropecuarias argentinas.
 Te dan un único documento contable. Extraé TODOS los datos financieros posibles y devolvelos como JSON estructurado.

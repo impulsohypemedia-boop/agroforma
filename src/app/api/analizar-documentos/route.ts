@@ -5,7 +5,7 @@ import { ExtractedDocData } from "@/types/analysis";
 import { extractOutermostJSON } from "@/lib/extractJSON";
 import { downloadFromStorage } from "@/lib/download";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const SYSTEM_PROMPT = `Sos un analista especializado en documentación de empresas agropecuarias argentinas. Te van a dar uno o más documentos. Analizalos y devolvé un JSON con:
 

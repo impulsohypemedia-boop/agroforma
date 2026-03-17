@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { extractOutermostJSON } from "@/lib/extractJSON";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 const SYSTEM_PROMPT = `Sos un analista agropecuario especializado en empresas agrícolas argentinas. Te van a dar documentos contables (balances, estados de resultados, anexos de ventas y costos). Tu tarea es extraer la información de ventas por cultivo y costos, y generar un JSON con el Margen Bruto por Cultivo.
 
 Buscá en el documento:

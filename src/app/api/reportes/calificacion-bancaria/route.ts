@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { extractOutermostJSON } from "@/lib/extractJSON";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 const SYSTEM_PROMPT = `Sos un analista especializado en calificaciones bancarias de empresas agropecuarias argentinas. Te dan documentos contables. Tu tarea es extraer toda la información posible para completar el formulario unificado de calificación bancaria (Formulario CREA).
 
 Completá todo lo que puedas encontrar. Lo que NO encuentres marcalo con null y agregalo a datos_faltantes.

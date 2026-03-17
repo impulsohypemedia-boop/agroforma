@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { ContentBlockParam, ImageBlockParam, DocumentBlockParam, TextBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import { downloadFromStorage } from "@/lib/download";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 const client = new Anthropic();
 
 const CULTIVO_COLORS: Record<string, string> = {
