@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
   Scale, TrendingUp, BarChart2, GitBranch, Target,
   Calendar, Map, Building2, Loader2, LucideIcon, FileText, Lock,
-  ChevronDown, ChevronRight, CheckCircle2, XCircle, X, Upload as UploadIcon, History,
+  ChevronDown, ChevronRight, CheckCircle2, XCircle, X, Upload as UploadIcon, History, RefreshCw,
 } from "lucide-react";
 import { AnalysisResult, ReportePosible } from "@/types/analysis";
 import { GeneratedReport } from "@/types/report";
@@ -211,7 +211,7 @@ function AvailableReportCard({
 
   // Button state
   let btnContent: React.ReactNode;
-  let btnStyle: React.CSSProperties;
+  let btnStyle: React.CSSProperties = {};
   let btnAction: (() => void) | undefined;
   let btnDisabled = false;
 
@@ -223,20 +223,17 @@ function AvailableReportCard({
     btnContent = "Próximamente";
     btnStyle = { borderColor: "#D6D1C8", color: "#B8922A", backgroundColor: "#FEF3CD", cursor: "default" };
     btnDisabled = true;
-  } else if (hasGenerated) {
-    btnContent = "Ver reporte";
-    btnStyle = { borderColor: "#3D7A1C", color: "#3D7A1C", backgroundColor: "#FFFFFF", cursor: "pointer" };
-    btnAction = () => onViewReport(latestReport!);
-  } else if (!canGenerate) {
+  } else if (!hasGenerated && !canGenerate) {
     btnContent = <><UploadIcon size={13} />Subir documentos</>;
     btnStyle = { borderColor: "#D6D1C8", color: "#6B6560", backgroundColor: "#F9F8F4", cursor: "pointer" };
     btnAction = onUpload;
-  } else {
+  } else if (!hasGenerated) {
     btnContent = "Generar";
     btnStyle = { borderColor: "#3D7A1C", color: "#FFFFFF", backgroundColor: "#3D7A1C", cursor: isAnyBusy ? "not-allowed" : "pointer" };
     btnAction = isAnyBusy ? undefined : onGenerate;
     btnDisabled = isAnyBusy;
   }
+  // hasGenerated buttons are rendered inline below
 
   return (
     <div
@@ -308,25 +305,48 @@ function AvailableReportCard({
         </p>
       </div>
 
-      <button
-        disabled={btnDisabled}
-        onClick={btnAction}
-        className="mt-1 w-full py-2 rounded-lg text-xs font-semibold border transition-colors flex items-center justify-center gap-1.5"
-        style={btnStyle}
-        onMouseEnter={(e) => {
-          if (!btnDisabled && !hasGenerated && btnAction) {
-            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#2F6016";
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (!btnDisabled && !hasGenerated && btnAction) {
-            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#3D7A1C";
-          }
-        }}
-      >
-        {btnContent}
-      </button>
-      {REPORT_HINTS[reporte.id] && (
+      {hasGenerated && !isGenerating ? (
+        <div className="mt-1 flex flex-col gap-1.5">
+          <button
+            onClick={() => onViewReport(latestReport!)}
+            className="w-full py-2 rounded-lg text-xs font-semibold border transition-colors flex items-center justify-center gap-1.5 cursor-pointer hover:bg-gray-50"
+            style={{ borderColor: "#3D7A1C", color: "#3D7A1C", backgroundColor: "#FFFFFF" }}
+          >
+            Ver reporte
+          </button>
+          {canGenerate && (
+            <button
+              onClick={isAnyBusy ? undefined : onGenerate}
+              disabled={isAnyBusy}
+              className="w-full py-1.5 rounded-lg text-[11px] font-medium transition-colors flex items-center justify-center gap-1 cursor-pointer hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ color: "#9B9488" }}
+            >
+              <RefreshCw size={11} />
+              Regenerar
+            </button>
+          )}
+        </div>
+      ) : (
+        <button
+          disabled={btnDisabled}
+          onClick={btnAction}
+          className="mt-1 w-full py-2 rounded-lg text-xs font-semibold border transition-colors flex items-center justify-center gap-1.5"
+          style={btnStyle}
+          onMouseEnter={(e) => {
+            if (!btnDisabled && canGenerate && btnAction) {
+              (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#2F6016";
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!btnDisabled && canGenerate && btnAction) {
+              (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#3D7A1C";
+            }
+          }}
+        >
+          {btnContent}
+        </button>
+      )}
+      {REPORT_HINTS[reporte.id] && !hasGenerated && (
         <p style={{ fontSize: 10, color: "#B0A99F", lineHeight: 1.4, marginTop: 2, display: "flex", gap: 4, alignItems: "flex-start" }}>
           <span style={{ flexShrink: 0, marginTop: 0.5 }}>💡</span>
           {REPORT_HINTS[reporte.id]}

@@ -205,22 +205,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     if (skipNextLoad.current) {
-      // Just created empresa — keep current in-memory state and save it to the new empresa
+      // Just created empresa — preserve only current analysis/docs (from onboarding flow),
+      // reset everything else so data from another empresa doesn't leak
       skipNextLoad.current = false;
       const eId = empresaActivaId;
+      // Keep: documents, fileStore, analysisResult, extractedDocsData, extractedTexts (from current upload)
+      // Reset: reports, campos, plan, hacienda, etc.
+      setGeneratedReports([]); setEscenarios([]);
+      setCampos([]); setPlanSiembra([]); setCampanaActual("2025/26");
+      setStockHacienda([]); setMovimientosHacienda([]);
+      setArchivosPlanos([]); setPlanoBlobMap({});
+      setPresentaciones([]); setPresentacionBlobMap({});
+      // Save the preserved state to the new empresa
       saveState(eId, "documents", documents);
-      saveState(eId, "reports", generatedReports);
-      saveState(eId, "escenarios", escenarios);
       saveState(eId, "analysis", analysisResult);
       saveState(eId, "extracted_docs", extractedDocsData);
       saveState(eId, "extracted_texts", extractedTexts);
-      saveState(eId, "campos", campos);
-      saveState(eId, "plan_siembra", planSiembra);
-      saveState(eId, "campana", campanaActual);
-      saveState(eId, "stock_hacienda", stockHacienda);
-      saveState(eId, "movimientos_hacienda", movimientosHacienda);
-      saveState(eId, "planos", archivosPlanos);
-      saveState(eId, "presentaciones", presentaciones);
       readyToSave.current = true;
       return;
     }
