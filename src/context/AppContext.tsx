@@ -106,6 +106,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Gate that prevents saving back immediately after loading from DB
   const readyToSave = useRef(false);
+  // When true, skip loadAllState and instead flush current in-memory state to the new empresa
+  const skipNextLoad = useRef(false);
 
   const empresaActiva = empresas.find(e => e.id === empresaActivaId) ?? null;
 
@@ -169,6 +171,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Persist preference locally
     if (user?.id) {
       localStorage.setItem(`agroforma_activa_${user.id}`, empresaActivaId);
+    }
+
+    if (skipNextLoad.current) {
+      // Just created empresa — keep current in-memory state and save it to the new empresa
+      skipNextLoad.current = false;
+      const eId = empresaActivaId;
+      saveState(eId, "documents", documents);
+      saveState(eId, "reports", generatedReports);
+      saveState(eId, "escenarios", escenarios);
+      saveState(eId, "analysis", analysisResult);
+      saveState(eId, "extracted_docs", extractedDocsData);
+      saveState(eId, "campos", campos);
+      saveState(eId, "plan_siembra", planSiembra);
+      saveState(eId, "campana", campanaActual);
+      saveState(eId, "stock_hacienda", stockHacienda);
+      saveState(eId, "movimientos_hacienda", movimientosHacienda);
+      saveState(eId, "planos", archivosPlanos);
+      saveState(eId, "presentaciones", presentaciones);
+      readyToSave.current = true;
+      return;
     }
 
     setLoadingData(true);
@@ -246,6 +268,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const nueva = await dbCreateEmpresa(user.id, data);
     if (!nueva) return null;
     setEmpresas(prev => [...prev, nueva]);
+    // Preserve current in-memory state (documents, analysis, etc.) when switching to the new empresa
+    skipNextLoad.current = true;
     setEmpresaActivaId(nueva.id);
     return nueva;
   }, [user]);
