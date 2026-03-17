@@ -127,7 +127,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setGeneratedReports(    (s.reports               as GeneratedReport[]    | null) ?? []);
     setEscenarios(          (s.escenarios            as GeneratedReport[]    | null) ?? []);
     setAnalysisResult(      (s.analysis              as AnalysisResult       | null) ?? null);
-    setExtractedDocsData(   (s.extracted_docs        as ExtractedDocData[]   | null) ?? []);
+
+    // Restore extractedDocsData: prefer extracted_docs array, fallback to individual doc_content_* keys
+    let extracted = (s.extracted_docs as ExtractedDocData[] | null) ?? [];
+    if (extracted.length === 0) {
+      const docContents: ExtractedDocData[] = [];
+      for (const [key, val] of Object.entries(s)) {
+        if (key.startsWith("doc_content_") && val) {
+          docContents.push(val as ExtractedDocData);
+        }
+      }
+      if (docContents.length > 0) extracted = docContents;
+    }
+    setExtractedDocsData(extracted);
+
     setCampos(              (s.campos                as Campo[]              | null) ?? []);
     setPlanSiembra(         (s.plan_siembra          as Lote[]               | null) ?? []);
     setCampanaActual(       (s.campana               as string               | null) ?? "2025/26");

@@ -14,6 +14,7 @@ import NuevaEmpresaModal from "@/components/NuevaEmpresaModal";
 import { UploadedDoc } from "@/types/document";
 import { GeneratedReport } from "@/types/report";
 import { uploadFiles } from "@/lib/supabase/storage";
+import { saveState } from "@/lib/supabase/db";
 
 // ─── Route map ────────────────────────────────────────────────────────────────
 const ROUTE_MAP: Record<string, { reportId: string; apiPath: string; downloadPath: string }> = {
@@ -241,7 +242,13 @@ export default function DashboardClient() {
             body: JSON.stringify(fileRefs[i]),
           });
           const body = await res.json();
-          if (res.ok && body.data) collected.push(body.data as ExtractedDocData);
+          if (res.ok && body.data) {
+            collected.push(body.data as ExtractedDocData);
+            // Persist individual doc content for post-refresh usage
+            if (eId && eId !== "sin-empresa") {
+              saveState(eId, `doc_content_${fileRefs[i].name}`, body.data);
+            }
+          }
         } catch {
           // continue even if one file fails
         }
@@ -279,6 +286,10 @@ export default function DashboardClient() {
             if (r2.ok && b2.data) {
               collected.push(b2.data as ExtractedDocData);
               setExtractedDocsData(collected);
+              // Persist individual doc content for post-refresh usage
+              if (eId && eId !== "sin-empresa") {
+                saveState(eId, `doc_content_${fileRefs[0].name}`, b2.data);
+              }
             }
           } catch { /* ignore */ }
         }
@@ -348,8 +359,8 @@ export default function DashboardClient() {
     if (matching.length > 0) latestByAnalysisId[analysisId] = matching[matching.length - 1];
   }
 
-  // ── Can generate? (extracted data available from current session or loaded from DB) ──
-  const canGenerate = extractedDocsData.length > 0;
+  // ── Can generate? (extracted data in memory OR files uploaded in this session) ──
+  const canGenerate = extractedDocsData.length > 0 || fileStore.length > 0;
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const kpis = [
