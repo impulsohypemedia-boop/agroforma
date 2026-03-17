@@ -37,6 +37,8 @@ type AppCtx = {
   setAnalysisResult:   React.Dispatch<React.SetStateAction<AnalysisResult | null>>;
   extractedDocsData:   ExtractedDocData[];
   setExtractedDocsData: React.Dispatch<React.SetStateAction<ExtractedDocData[]>>;
+  extractedTexts:      Record<string, string>;
+  setExtractedTexts:   React.Dispatch<React.SetStateAction<Record<string, string>>>;
   campos:              Campo[];
   setCampos:           React.Dispatch<React.SetStateAction<Campo[]>>;
   planSiembra:         Lote[];
@@ -68,6 +70,7 @@ const AppContext = createContext<AppCtx>({
   escenarios: [], setEscenarios: () => {},
   analysisResult: null, setAnalysisResult: () => {},
   extractedDocsData: [], setExtractedDocsData: () => {},
+  extractedTexts: {}, setExtractedTexts: () => {},
   campos: [], setCampos: () => {},
   planSiembra: [], setPlanSiembra: () => {},
   campanaActual: "2025/26", setCampanaActual: () => {},
@@ -94,6 +97,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [escenarios,           setEscenarios]           = useState<GeneratedReport[]>([]);
   const [analysisResult,       setAnalysisResult]       = useState<AnalysisResult | null>(null);
   const [extractedDocsData,    setExtractedDocsData]    = useState<ExtractedDocData[]>([]);
+  const [extractedTexts,       setExtractedTexts]       = useState<Record<string, string>>({});
   const [campos,               setCampos]               = useState<Campo[]>([]);
   const [planSiembra,          setPlanSiembra]          = useState<Lote[]>([]);
   const [campanaActual,        setCampanaActual]        = useState<string>("2025/26");
@@ -114,7 +118,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // ── Reset all per-empresa state to empty ─────────────────────────────────
   const resetData = useCallback(() => {
     setDocuments([]); setGeneratedReports([]); setEscenarios([]);
-    setAnalysisResult(null); setExtractedDocsData([]);
+    setAnalysisResult(null); setExtractedDocsData([]); setExtractedTexts({});
     setCampos([]); setPlanSiembra([]); setCampanaActual("2025/26");
     setStockHacienda([]); setMovimientosHacienda([]);
     setArchivosPlanos([]); setFileStore([]); setPlanoBlobMap({});
@@ -140,6 +144,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (docContents.length > 0) extracted = docContents;
     }
     setExtractedDocsData(extracted);
+    setExtractedTexts(   (s.extracted_texts   as Record<string, string> | null) ?? {});
 
     setCampos(              (s.campos                as Campo[]              | null) ?? []);
     setPlanSiembra(         (s.plan_siembra          as Lote[]               | null) ?? []);
@@ -195,6 +200,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       saveState(eId, "escenarios", escenarios);
       saveState(eId, "analysis", analysisResult);
       saveState(eId, "extracted_docs", extractedDocsData);
+      saveState(eId, "extracted_texts", extractedTexts);
       saveState(eId, "campos", campos);
       saveState(eId, "plan_siembra", planSiembra);
       saveState(eId, "campana", campanaActual);
@@ -241,6 +247,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!readyToSave.current || !empresaActivaId) return;
     saveState(empresaActivaId, "extracted_docs", extractedDocsData);
   }, [extractedDocsData, empresaActivaId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!readyToSave.current || !empresaActivaId) return;
+    saveState(empresaActivaId, "extracted_texts", extractedTexts);
+  }, [extractedTexts, empresaActivaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!readyToSave.current || !empresaActivaId) return;
@@ -323,6 +334,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       escenarios, setEscenarios,
       analysisResult, setAnalysisResult,
       extractedDocsData, setExtractedDocsData,
+      extractedTexts, setExtractedTexts,
       campos, setCampos,
       planSiembra, setPlanSiembra,
       campanaActual, setCampanaActual,

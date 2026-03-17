@@ -14,7 +14,6 @@ import NuevaEmpresaModal from "@/components/NuevaEmpresaModal";
 import { UploadedDoc } from "@/types/document";
 import { GeneratedReport } from "@/types/report";
 import { uploadFiles } from "@/lib/supabase/storage";
-import { saveState } from "@/lib/supabase/db";
 
 // ─── Route map ────────────────────────────────────────────────────────────────
 const ROUTE_MAP: Record<string, { reportId: string; apiPath: string; downloadPath: string }> = {
@@ -103,6 +102,7 @@ export default function DashboardClient() {
     generatedReports, setGeneratedReports,
     analysisResult, setAnalysisResult,
     extractedDocsData, setExtractedDocsData,
+    extractedTexts, setExtractedTexts,
     campos, planSiembra, campanaActual,
     empresas, empresaActivaId, crearEmpresa,
   } = useAppContext();
@@ -156,10 +156,15 @@ export default function DashboardClient() {
     const reporte = analysisResult?.reportes_posibles.find((r) => r.id === analysisId);
     const title = reporte?.nombre ?? analysisId;
 
+    // Prefer structured extractedData; fallback to raw texts from empresa_state
+    const payload = extractedDocsData.length > 0
+      ? { extractedData: extractedDocsData }
+      : { textos_extraidos: extractedTexts };
+
     const res = await fetch(route.apiPath, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ extractedData: extractedDocsData }),
+      body: JSON.stringify(payload),
     });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error ?? `Error ${res.status}`);
@@ -230,6 +235,7 @@ export default function DashboardClient() {
     }));
 
     const collected: ExtractedDocData[] = [];
+    const collectedTexts: Record<string, string> = {};
 
     // Step 1: extract each file individually
     if (fileRefs.length > 1) {
@@ -244,10 +250,10 @@ export default function DashboardClient() {
           const body = await res.json();
           if (res.ok && body.data) {
             collected.push(body.data as ExtractedDocData);
-            // Persist individual doc content for post-refresh usage
-            if (eId && eId !== "sin-empresa") {
-              saveState(eId, `doc_content_${fileRefs[i].name}`, body.data);
-            }
+          }
+          // Save raw text for post-refresh report generation
+          if (body.texto) {
+            collectedTexts[fileRefs[i].name] = body.texto;
           }
         } catch {
           // continue even if one file fails
@@ -255,6 +261,9 @@ export default function DashboardClient() {
       }
       setExtractProgress(null);
       setExtractedDocsData(collected);
+      if (Object.keys(collectedTexts).length > 0) {
+        setExtractedTexts(collectedTexts);
+      }
     }
 
     // Step 2: determine available reports
@@ -286,10 +295,10 @@ export default function DashboardClient() {
             if (r2.ok && b2.data) {
               collected.push(b2.data as ExtractedDocData);
               setExtractedDocsData(collected);
-              // Persist individual doc content for post-refresh usage
-              if (eId && eId !== "sin-empresa") {
-                saveState(eId, `doc_content_${fileRefs[0].name}`, b2.data);
-              }
+            }
+            // Save raw text for post-refresh report generation
+            if (b2.texto) {
+              setExtractedTexts({ [fileRefs[0].name]: b2.texto });
             }
           } catch { /* ignore */ }
         }
@@ -359,8 +368,8 @@ export default function DashboardClient() {
     if (matching.length > 0) latestByAnalysisId[analysisId] = matching[matching.length - 1];
   }
 
-  // ── Can generate? (extracted data in memory OR files uploaded in this session) ──
-  const canGenerate = extractedDocsData.length > 0 || fileStore.length > 0;
+  // ── Can generate? (extracted data OR raw texts from Supabase OR files in memory) ──
+  const canGenerate = extractedDocsData.length > 0 || Object.keys(extractedTexts).length > 0 || fileStore.length > 0;
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const kpis = [

@@ -229,9 +229,19 @@ Para completitud_pct: calculá qué % de los campos principales tienen datos rea
 
 export async function POST(request: NextRequest) {
   try {
-    const { extractedData } = await request.json();
-    if (!extractedData || extractedData.length === 0) {
+    const { extractedData, textos_extraidos } = await request.json();
+    if ((!extractedData || extractedData.length === 0) && !textos_extraidos) {
       return NextResponse.json({ error: "No se recibieron datos" }, { status: 400 });
+    }
+
+    let userContent: string;
+    if (extractedData && extractedData.length > 0) {
+      userContent = `Datos extraídos de los documentos contables:\n${JSON.stringify(extractedData, null, 2)}\n\nGenerá el JSON del Formulario de Calificación Bancaria CREA.`;
+    } else {
+      const textos = Object.entries(textos_extraidos as Record<string, string>)
+        .map(([name, text]) => `=== ${name} ===\n${text}`)
+        .join("\n\n");
+      userContent = `Contenido de los documentos contables:\n\n${textos}\n\nGenerá el JSON del Formulario de Calificación Bancaria CREA.`;
     }
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -240,10 +250,7 @@ export async function POST(request: NextRequest) {
       model: "claude-sonnet-4-6",
       max_tokens: 8192,
       system: SYSTEM_PROMPT,
-      messages: [{
-        role: "user",
-        content: `Datos extraídos de los documentos contables:\n${JSON.stringify(extractedData, null, 2)}\n\nGenerá el JSON del Formulario de Calificación Bancaria CREA.`,
-      }],
+      messages: [{ role: "user", content: userContent }],
     });
 
     const responseText = message.content[0].type === "text" ? message.content[0].text : "";

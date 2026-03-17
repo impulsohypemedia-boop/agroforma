@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import ExcelJS from "exceljs";
+import { PDFParse } from "pdf-parse";
 import { extractOutermostJSON } from "@/lib/extractJSON";
 import { downloadFromStorage } from "@/lib/download";
 
@@ -80,6 +81,9 @@ export async function POST(request: NextRequest) {
     const buffer = await downloadFromStorage(path);
     const nameLower = name.toLowerCase();
 
+    // Extract raw text for persistence (used after page refresh)
+    let rawText = "";
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const messageContent: any[] = [];
 
@@ -88,8 +92,16 @@ export async function POST(request: NextRequest) {
         type: "document",
         source: { type: "base64", media_type: "application/pdf", data: buffer.toString("base64") },
       });
+      // Extract raw text for persistence
+      try {
+        const parser = new PDFParse({ data: new Uint8Array(buffer) });
+        const result = await parser.getText();
+        rawText = result.text;
+        await parser.destroy();
+      } catch { rawText = "[No se pudo extraer texto del PDF]"; }
     } else if (nameLower.endsWith(".csv")) {
-      messageContent.push({ type: "text", text: `=== Archivo: ${name} ===\n${buffer.toString("utf-8")}` });
+      rawText = buffer.toString("utf-8");
+      messageContent.push({ type: "text", text: `=== Archivo: ${name} ===\n${rawText}` });
     } else if (nameLower.endsWith(".xlsx")) {
       try {
         const wb = new ExcelJS.Workbook();
@@ -107,6 +119,7 @@ export async function POST(request: NextRequest) {
             }).join("\t") + "\n";
           });
         });
+        rawText = txt;
         messageContent.push({ type: "text", text: txt });
       } catch {
         messageContent.push({ type: "text", text: `=== ${name} === [No se pudo leer]` });
@@ -144,7 +157,7 @@ export async function POST(request: NextRequest) {
     }
     const data = JSON.parse(jsonStr);
     data.nombre_archivo = name;
-    return NextResponse.json({ data });
+    return NextResponse.json({ data, texto: rawText });
   } catch (err) {
     console.error("Error en /api/analizar-documentos/extraer-uno:", err);
     return NextResponse.json(
