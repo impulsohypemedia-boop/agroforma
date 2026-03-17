@@ -75,7 +75,12 @@ export async function saveState(empresaId: string, key: string, value: unknown):
       { empresa_id: empresaId, key, value, updated_at: new Date().toISOString() },
       { onConflict: "empresa_id,key" }
     );
-  if (error) console.error(`saveState(${key}):`, error);
+  if (error) {
+    console.error(`[saveState] FAILED key="${key}":`, error);
+  } else {
+    const preview = Array.isArray(value) ? `[${(value as unknown[]).length} items]` : typeof value;
+    console.log(`[saveState] OK key="${key}" → ${preview}`);
+  }
 }
 
 export async function loadAllState(empresaId: string): Promise<Record<string, unknown>> {
@@ -84,8 +89,15 @@ export async function loadAllState(empresaId: string): Promise<Record<string, un
     .from("empresa_state")
     .select("key, value")
     .eq("empresa_id", empresaId);
-  if (error) { console.error("loadAllState:", error); return {}; }
+  if (error) { console.error("[loadAllState] FAILED:", error); return {}; }
   const result: Record<string, unknown> = {};
   for (const row of data ?? []) result[row.key] = row.value;
+  const keys = Object.keys(result);
+  console.log(`[loadAllState] Loaded ${keys.length} keys:`, keys);
+  for (const k of keys) {
+    const v = result[k];
+    const preview = Array.isArray(v) ? `[${(v as unknown[]).length} items]` : v === null ? "null" : typeof v;
+    console.log(`  "${k}" → ${preview}`);
+  }
   return result;
 }

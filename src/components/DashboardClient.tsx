@@ -96,6 +96,7 @@ function enrichAnalysis(
 
 export default function DashboardClient() {
   const {
+    loadingData,
     fileStore, setFileStore,
     documents, setDocuments,
     generatedReports, setGeneratedReports,
@@ -154,36 +155,10 @@ export default function DashboardClient() {
     const reporte = analysisResult?.reportes_posibles.find((r) => r.id === analysisId);
     const title = reporte?.nombre ?? analysisId;
 
-    // If no extracted data in memory, re-extract from stored documents
-    let dataForReport = extractedDocsData;
-    if (dataForReport.length === 0) {
-      const docsWithPath = documents.filter((d) => d.storage_path);
-      if (docsWithPath.length === 0) {
-        throw new Error("No hay documentos procesados. Subí documentos primero.");
-      }
-      const reExtracted: ExtractedDocData[] = [];
-      for (const doc of docsWithPath) {
-        try {
-          const r = await fetch("/api/analizar-documentos/extraer-uno", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: doc.name, path: doc.storage_path }),
-          });
-          const b = await r.json();
-          if (r.ok && b.data) reExtracted.push(b.data as ExtractedDocData);
-        } catch { /* continue */ }
-      }
-      if (reExtracted.length === 0) {
-        throw new Error("No se pudieron re-extraer los datos. Subí los documentos de nuevo.");
-      }
-      dataForReport = reExtracted;
-      setExtractedDocsData(reExtracted);
-    }
-
     const res = await fetch(route.apiPath, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ extractedData: dataForReport }),
+      body: JSON.stringify({ extractedData: extractedDocsData }),
     });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error ?? `Error ${res.status}`);
@@ -565,7 +540,17 @@ export default function DashboardClient() {
             </section>
 
             {/* Análisis / Reportes disponibles */}
-            {analyzing ? (
+            {loadingData ? (
+              <section>
+                <div
+                  className="flex flex-col items-center justify-center gap-3 rounded-xl border py-14"
+                  style={{ borderColor: "#E8E5DE", backgroundColor: "#FFFFFF" }}
+                >
+                  <Loader2 size={28} className="animate-spin" style={{ color: "#3D7A1C" }} />
+                  <p className="font-medium text-sm" style={{ color: "#1A1A1A" }}>Cargando datos…</p>
+                </div>
+              </section>
+            ) : analyzing ? (
               <section>
                 <div
                   className="flex flex-col items-center justify-center gap-3 rounded-xl border py-14"
