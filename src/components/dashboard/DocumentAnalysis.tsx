@@ -185,6 +185,7 @@ function RequiredDocsModal({
 function AvailableReportCard({
   reporte,
   isGenerating,
+  generatingPhase,
   isAnyBusy,
   isSelected,
   canGenerate,
@@ -196,6 +197,7 @@ function AvailableReportCard({
 }: {
   reporte: ReportePosible;
   isGenerating: boolean;
+  generatingPhase: "extracting" | "generating" | null;
   isAnyBusy: boolean;
   isSelected: boolean;
   canGenerate: boolean;
@@ -216,7 +218,8 @@ function AvailableReportCard({
   let btnDisabled = false;
 
   if (isGenerating) {
-    btnContent = <><Loader2 size={13} className="animate-spin" />Generando…</>;
+    const phaseText = generatingPhase === "extracting" ? "Procesando documentos…" : "Generando…";
+    btnContent = <><Loader2 size={13} className="animate-spin" />{phaseText}</>;
     btnStyle = { borderColor: "#3D7A1C", color: "#3D7A1C", backgroundColor: "#EBF3E8", cursor: "wait" };
     btnDisabled = true;
   } else if (!implemented) {
@@ -420,6 +423,7 @@ function UnavailableReportCard({
 type Props = {
   analysis: AnalysisResult;
   generating: string | null;
+  generatingPhase: "extracting" | "generating" | null;
   bulkProgress: { current: number; total: number; name: string } | null;
   canGenerate: boolean;
   latestByAnalysisId: Record<string, GeneratedReport>;
@@ -432,6 +436,7 @@ type Props = {
 export default function DocumentAnalysis({
   analysis,
   generating,
+  generatingPhase,
   bulkProgress,
   canGenerate,
   latestByAnalysisId,
@@ -553,6 +558,7 @@ export default function DocumentAnalysis({
                 key={reporte.id}
                 reporte={reporte}
                 isGenerating={generating === reporte.id}
+                generatingPhase={generatingPhase}
                 isAnyBusy={isAnyBusy}
                 isSelected={selected.has(reporte.id)}
                 canGenerate={canGenerate}

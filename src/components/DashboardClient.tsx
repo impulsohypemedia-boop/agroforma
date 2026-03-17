@@ -148,17 +148,56 @@ export default function DashboardClient() {
     localStorage.setItem("agroforma_notif_seen", String(generatedReports.length));
   };
 
+  // ── On-demand re-extraction from storage ─────────────────────────────────
+  // Local cache so we don't read stale React state inside loops
+  const extractedRef = useRef<ExtractedDocData[]>([]);
+  useEffect(() => { extractedRef.current = extractedDocsData; }, [extractedDocsData]);
+
+  const ensureExtractedData = async (): Promise<ExtractedDocData[]> => {
+    if (extractedRef.current.length > 0) return extractedRef.current;
+
+    // Re-extract from documents that have storage_path
+    const docsWithPath = documents.filter((d) => d.storage_path);
+    if (docsWithPath.length === 0) throw new Error("No hay documentos disponibles.");
+
+    setGeneratingPhase("extracting");
+    const collected: ExtractedDocData[] = [];
+    for (let i = 0; i < docsWithPath.length; i++) {
+      setExtractProgress({ current: i + 1, total: docsWithPath.length });
+      try {
+        const r = await fetch("/api/analizar-documentos/extraer-uno", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: docsWithPath[i].name, path: docsWithPath[i].storage_path }),
+        });
+        const b = await r.json();
+        if (r.ok && b.data) collected.push(b.data as ExtractedDocData);
+      } catch { /* continue */ }
+    }
+    setExtractProgress(null);
+
+    if (collected.length === 0) throw new Error("No se pudieron procesar los documentos.");
+    setExtractedDocsData(collected);
+    extractedRef.current = collected;
+    return collected;
+  };
+
   // ── Core generation ───────────────────────────────────────────────────────
+  const [generatingPhase, setGeneratingPhase] = useState<"extracting" | "generating" | null>(null);
+
   const generateOne = async (analysisId: string) => {
     const route = ROUTE_MAP[analysisId];
     if (!route) return;
     const reporte = analysisResult?.reportes_posibles.find((r) => r.id === analysisId);
     const title = reporte?.nombre ?? analysisId;
 
+    const data = await ensureExtractedData();
+    setGeneratingPhase("generating");
+
     const res = await fetch(route.apiPath, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ extractedData: extractedDocsData }),
+      body: JSON.stringify({ extractedData: data }),
     });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error ?? `Error ${res.status}`);
@@ -181,23 +220,35 @@ export default function DashboardClient() {
     setGenError(null);
     try { await generateOne(analysisId); }
     catch (err) { setGenError(err instanceof Error ? err.message : "Error al generar"); }
-    finally { setGenerating(null); }
+    finally { setGenerating(null); setGeneratingPhase(null); }
   };
 
   const handleGenerateMultiple = async (analysisIds: string[]) => {
     const valid = analysisIds.filter((id) => ROUTE_MAP[id]);
     if (!valid.length || generating || bulkProgress) return;
     setGenError(null);
+
+    // Pre-extract once for all reports
+    try {
+      await ensureExtractedData();
+    } catch (err) {
+      setGenError(err instanceof Error ? err.message : "Error al procesar documentos");
+      setGeneratingPhase(null);
+      return;
+    }
+
     for (let i = 0; i < valid.length; i++) {
       const id = valid[i];
       const nombre = analysisResult?.reportes_posibles.find((r) => r.id === id)?.nombre ?? id;
       setBulkProgress({ current: i + 1, total: valid.length, name: nombre });
       setGenerating(id);
+      setGeneratingPhase("generating");
       try { await generateOne(id); }
       catch (err) { setGenError(err instanceof Error ? err.message : "Error al generar"); }
       finally { setGenerating(null); }
     }
     setBulkProgress(null);
+    setGeneratingPhase(null);
   };
 
   // ── Upload & extraction flow ───────────────────────────────────────────────
@@ -348,8 +399,8 @@ export default function DashboardClient() {
     if (matching.length > 0) latestByAnalysisId[analysisId] = matching[matching.length - 1];
   }
 
-  // ── Can generate? (extracted data in memory from current session) ────────
-  const canGenerate = extractedDocsData.length > 0;
+  // ── Can generate? (extracted data in memory OR documents in storage) ─────
+  const canGenerate = extractedDocsData.length > 0 || documents.some((d) => !!d.storage_path);
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const kpis = [
@@ -584,6 +635,7 @@ export default function DashboardClient() {
               <DocumentAnalysis
                 analysis={enrichedAnalysis}
                 generating={generating}
+                generatingPhase={generatingPhase}
                 bulkProgress={bulkProgress}
                 canGenerate={canGenerate}
                 latestByAnalysisId={latestByAnalysisId}
