@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import ExcelJS from "exceljs";
-import { PDFParse } from "pdf-parse";
 import { extractOutermostJSON } from "@/lib/extractJSON";
 import { downloadFromStorage } from "@/lib/download";
 
@@ -67,7 +66,9 @@ Para ventas_por_cultivo: [{ "cultivo": "Soja", "hectareas": number|null, "tonela
 Para costos_produccion: [{ "cultivo": "Soja", "costo_semilla": number|null, "costo_fertilizante": number|null, "costo_agroquimicos": number|null, "costo_labores": number|null, "costo_cosecha": number|null, "costo_flete": number|null, "costo_total": number|null, "hectareas": number|null }]
 Para deudas_detalle: [{ "entidad": "Banco", "monto": number, "moneda": "ARS|USD", "plazo": "corriente|no corriente" }]
 
-Si un dato no existe en el documento, dejá null. NO inventes datos. Extraé TODO lo que encuentres.`;
+Si un dato no existe en el documento, dejá null. NO inventes datos. Extraé TODO lo que encuentres.
+
+IMPORTANTE: Además del análisis, incluí un campo "texto_completo" en el JSON raíz (al mismo nivel que "nombre_archivo") con TODO el texto del documento tal cual lo ves, sin resumir, con todos los números, tablas y datos. Este texto se usa para generar reportes después sin tener que volver a leer el PDF.`;
 
 export async function POST(request: NextRequest) {
   try {
@@ -81,7 +82,7 @@ export async function POST(request: NextRequest) {
     const buffer = await downloadFromStorage(path);
     const nameLower = name.toLowerCase();
 
-    // Extract raw text for persistence (used after page refresh)
+    // For non-PDF files, we capture text directly. For PDFs, Claude provides texto_completo.
     let rawText = "";
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -92,18 +93,6 @@ export async function POST(request: NextRequest) {
         type: "document",
         source: { type: "base64", media_type: "application/pdf", data: buffer.toString("base64") },
       });
-      // Extract raw text for persistence
-      try {
-        const parser = new PDFParse({ data: new Uint8Array(buffer) });
-        const result = await parser.getText();
-        rawText = result.text;
-        await parser.destroy();
-        console.log(`[extraer-uno] pdf-parse extracted ${rawText.length} chars from "${name}"`);
-        if (rawText.length < 100) console.log(`[extraer-uno] WARNING: very short text: "${rawText.substring(0, 200)}"`);
-      } catch (e) {
-        console.error(`[extraer-uno] pdf-parse FAILED for "${name}":`, e);
-        rawText = "[No se pudo extraer texto del PDF]";
-      }
     } else if (nameLower.endsWith(".csv")) {
       rawText = buffer.toString("utf-8");
       messageContent.push({ type: "text", text: `=== Archivo: ${name} ===\n${rawText}` });
@@ -142,14 +131,14 @@ export async function POST(request: NextRequest) {
     const message = hasPdf
       ? await client.beta.messages.create({
           model: "claude-sonnet-4-6",
-          max_tokens: 4096,
+          max_tokens: 16384,
           system: SYSTEM_PROMPT,
           messages: [{ role: "user", content: messageContent }],
           betas: ["pdfs-2024-09-25"],
         })
       : await client.messages.create({
           model: "claude-sonnet-4-6",
-          max_tokens: 4096,
+          max_tokens: 16384,
           system: SYSTEM_PROMPT,
           messages: [{ role: "user", content: messageContent }],
         });
@@ -162,9 +151,18 @@ export async function POST(request: NextRequest) {
     }
     const data = JSON.parse(jsonStr);
     data.nombre_archivo = name;
+
+    // Extract texto_completo from Claude's response (for PDFs)
+    if (data.texto_completo && !rawText) {
+      rawText = data.texto_completo;
+    }
+    // Remove texto_completo from structured data to keep it clean
+    const textoCompleto = data.texto_completo || rawText;
+    delete data.texto_completo;
+
     console.log(`[extraer-uno] OK "${name}" → data keys: ${Object.keys(data.datos || {}).filter(k => data.datos[k] !== null).join(", ")}`);
-    console.log(`[extraer-uno] OK "${name}" → rawText length: ${rawText.length}`);
-    return NextResponse.json({ data, texto: rawText });
+    console.log(`[extraer-uno] OK "${name}" → texto length: ${textoCompleto.length}`);
+    return NextResponse.json({ data, texto: textoCompleto });
   } catch (err) {
     console.error("Error en /api/analizar-documentos/extraer-uno:", err);
     return NextResponse.json(
