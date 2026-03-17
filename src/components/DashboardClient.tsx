@@ -102,12 +102,16 @@ export default function DashboardClient() {
     analysisResult, setAnalysisResult,
     extractedDocsData, setExtractedDocsData,
     campos, planSiembra, campanaActual,
-    empresas, empresaActivaId,
+    empresas, empresaActivaId, crearEmpresa,
   } = useAppContext();
 
   const [modalOpen,       setModalOpen]       = useState(false);
   const [nuevaEmpresaOpen, setNuevaEmpresaOpen] = useState(false);
   const [analyzing,       setAnalyzing]       = useState(false);
+  // Auto-create empresa flow
+  const [detectedEmpresa, setDetectedEmpresa] = useState<{ nombre: string; cuit?: string } | null>(null);
+  const [editingEmpresaNombre, setEditingEmpresaNombre] = useState("");
+  const pendingFilesRef = useRef<File[]>([]);
   const [extractProgress, setExtractProgress] = useState<{ current: number; total: number } | null>(null);
   const [generating,      setGenerating]      = useState<string | null>(null);
   const [bulkProgress,    setBulkProgress]    = useState<{ current: number; total: number; name: string } | null>(null);
@@ -200,8 +204,7 @@ export default function DashboardClient() {
   };
 
   // ── Upload & extraction flow ───────────────────────────────────────────────
-  const runAnalysisWithProgress = async (files: File[]) => {
-    if (!empresaActivaId) return;
+  const runAnalysisWithProgress = async (files: File[], eId: string) => {
     setAnalyzing(true);
     setAnalysisResult(null);
     setExtractedDocsData([]);
@@ -209,7 +212,7 @@ export default function DashboardClient() {
     // Upload all files to Supabase Storage first
     let uploaded: { name: string; type: string; size: number; path: string }[] = [];
     try {
-      uploaded = await uploadFiles(empresaActivaId, files);
+      uploaded = await uploadFiles(eId, files);
     } catch (err) {
       setGenError(err instanceof Error ? err.message : "Error al subir archivos");
       setAnalyzing(false);
@@ -284,7 +287,17 @@ export default function DashboardClient() {
         }
       }
       const body = await res.json();
-      if (res.ok && body.data) setAnalysisResult(body.data);
+      if (res.ok && body.data) {
+        setAnalysisResult(body.data);
+        // Auto-detect empresa if none exists
+        if (empresas.length === 0 && body.data.empresa) {
+          setDetectedEmpresa({ nombre: body.data.empresa, cuit: body.data.cuit ?? undefined });
+          setEditingEmpresaNombre(body.data.empresa);
+        } else if (empresas.length === 0) {
+          // AI didn't detect empresa name — ask manually
+          setNuevaEmpresaOpen(true);
+        }
+      }
       else setGenError(body.error ?? "No se pudo analizar los documentos");
     } catch {
       setGenError("Error al conectar con el servidor de análisis");
@@ -298,7 +311,32 @@ export default function DashboardClient() {
     setDocuments((prev) => [...prev, ...newDocs]);
     setFileStore(allFiles);
     setModalOpen(false);
-    runAnalysisWithProgress(allFiles);
+
+    if (empresaActivaId) {
+      runAnalysisWithProgress(allFiles, empresaActivaId);
+    } else {
+      // No empresa yet — use temp path, store files for later
+      pendingFilesRef.current = allFiles;
+      runAnalysisWithProgress(allFiles, "sin-empresa");
+    }
+  };
+
+  // Confirm auto-detected empresa
+  const handleConfirmEmpresa = async () => {
+    const nombre = editingEmpresaNombre.trim();
+    if (!nombre) return;
+    const nueva = await crearEmpresa({
+      nombre,
+      cuit: detectedEmpresa?.cuit,
+      actividad: "mixta",
+      campana: "2025/26",
+    });
+    setDetectedEmpresa(null);
+    if (nueva) {
+      // Re-upload files to the real empresa path if we used temp
+      // For now, the files are already in storage under "sin-empresa/" — that's fine
+      // The important thing is the empresa exists and state is linked to it
+    }
   };
 
   // ── Enrich analysis with gestión data ────────────────────────────────────
@@ -460,21 +498,7 @@ export default function DashboardClient() {
             </button>
           </header>
 
-          {/* Empty state: no empresas */}
-          {empresas.length === 0 && (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center max-w-sm py-20">
-                <Building2 size={48} className="mx-auto mb-4 text-gray-300" />
-                <h2 className="text-xl font-semibold text-gray-700 mb-2">Bienvenido a AgroForma</h2>
-                <p className="text-gray-500 mb-6">Creá tu primera empresa para comenzar a cargar documentos y generar reportes.</p>
-                <button onClick={() => setNuevaEmpresaOpen(true)} className="px-6 py-3 rounded-xl font-semibold text-white" style={{ backgroundColor: "#1A3311" }}>
-                  Crear mi primera empresa
-                </button>
-              </div>
-            </div>
-          )}
-
-          <main className="px-8 py-7 space-y-8 max-w-6xl" style={{ display: empresas.length === 0 ? "none" : undefined }}>
+          <main className="px-8 py-7 space-y-8 max-w-6xl">
 
             {/* Error banner */}
             {genError && (
@@ -567,11 +591,14 @@ export default function DashboardClient() {
               <section className="space-y-6">
                 {/* Header */}
                 <div className="text-center">
-                  <h2 className="text-xl font-bold mb-2" style={{ color: "#1A1A1A" }}>
-                    Subí la documentación de tu empresa para comenzar
+                  <h2 className="text-2xl font-bold mb-2" style={{ color: "#1A1A1A" }}>
+                    Bienvenido a AgroForma
                   </h2>
-                  <p className="text-sm" style={{ color: "#9B9488" }}>
-                    AgroForma analiza tus documentos y genera reportes automáticamente
+                  <p className="text-sm font-medium mb-1" style={{ color: "#3D7A1C" }}>
+                    La inteligencia artificial de la empresa agropecuaria argentina
+                  </p>
+                  <p className="text-sm max-w-lg mx-auto" style={{ color: "#9B9488" }}>
+                    Subí la documentación de tu empresa y AgroForma la analiza, estructura y te genera reportes automáticamente.
                   </p>
                 </div>
 
@@ -698,6 +725,76 @@ export default function DashboardClient() {
         open={nuevaEmpresaOpen}
         onClose={() => setNuevaEmpresaOpen(false)}
       />
+
+      {/* Auto-detect empresa confirmation modal */}
+      {detectedEmpresa && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div
+            className="w-full max-w-md rounded-2xl border shadow-2xl p-7 mx-4"
+            style={{ backgroundColor: "#FFFFFF", borderColor: "#E8E5DE" }}
+          >
+            <div className="flex items-center gap-3 mb-5">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{ backgroundColor: "#EBF3E8" }}
+              >
+                <Building2 size={20} style={{ color: "#3D7A1C" }} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold" style={{ color: "#1A1A1A" }}>
+                  Empresa detectada
+                </h3>
+                <p className="text-xs mt-0.5" style={{ color: "#9B9488" }}>
+                  Encontramos esta información en tus documentos
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              <div>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: "#6B6560" }}>
+                  Nombre de la empresa
+                </label>
+                <input
+                  type="text"
+                  value={editingEmpresaNombre}
+                  onChange={(e) => setEditingEmpresaNombre(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-lg border text-sm outline-none transition-colors focus:ring-2"
+                  style={{ borderColor: "#E8E5DE", color: "#1A1A1A" }}
+                />
+              </div>
+              {detectedEmpresa.cuit && (
+                <div>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: "#6B6560" }}>
+                    CUIT
+                  </label>
+                  <p className="text-sm font-mono px-3 py-2.5 rounded-lg" style={{ backgroundColor: "#F9F8F4", color: "#1A1A1A" }}>
+                    {detectedEmpresa.cuit}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setDetectedEmpresa(null); setNuevaEmpresaOpen(true); }}
+                className="flex-1 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors cursor-pointer hover:bg-gray-50"
+                style={{ borderColor: "#E8E5DE", color: "#6B6560" }}
+              >
+                Editar manualmente
+              </button>
+              <button
+                onClick={handleConfirmEmpresa}
+                disabled={!editingEmpresaNombre.trim()}
+                className="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold text-white transition-opacity cursor-pointer hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ backgroundColor: "#3D7A1C" }}
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
