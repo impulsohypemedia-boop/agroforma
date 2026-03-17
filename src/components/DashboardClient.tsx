@@ -154,14 +154,36 @@ export default function DashboardClient() {
     const reporte = analysisResult?.reportes_posibles.find((r) => r.id === analysisId);
     const title = reporte?.nombre ?? analysisId;
 
-    if (extractedDocsData.length === 0) {
-      throw new Error("No hay datos extraídos. Volvé a subir los documentos.");
+    // If no extracted data in memory, re-extract from stored documents
+    let dataForReport = extractedDocsData;
+    if (dataForReport.length === 0) {
+      const docsWithPath = documents.filter((d) => d.storage_path);
+      if (docsWithPath.length === 0) {
+        throw new Error("No hay documentos procesados. Subí documentos primero.");
+      }
+      const reExtracted: ExtractedDocData[] = [];
+      for (const doc of docsWithPath) {
+        try {
+          const r = await fetch("/api/analizar-documentos/extraer-uno", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: doc.name, path: doc.storage_path }),
+          });
+          const b = await r.json();
+          if (r.ok && b.data) reExtracted.push(b.data as ExtractedDocData);
+        } catch { /* continue */ }
+      }
+      if (reExtracted.length === 0) {
+        throw new Error("No se pudieron re-extraer los datos. Subí los documentos de nuevo.");
+      }
+      dataForReport = reExtracted;
+      setExtractedDocsData(reExtracted);
     }
 
     const res = await fetch(route.apiPath, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ extractedData: extractedDocsData }),
+      body: JSON.stringify({ extractedData: dataForReport }),
     });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error ?? `Error ${res.status}`);
@@ -580,7 +602,6 @@ export default function DashboardClient() {
                 analysis={enrichedAnalysis}
                 generating={generating}
                 bulkProgress={bulkProgress}
-                hasFiles={extractedDocsData.length > 0}
                 latestByAnalysisId={latestByAnalysisId}
                 onGenerate={handleGenerate}
                 onGenerateMultiple={handleGenerateMultiple}

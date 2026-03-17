@@ -202,65 +202,67 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [empresaActivaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Persist per-empresa data to Supabase ─────────────────────────────────
+  // NOTE: empresaActivaId is included in deps so save effects also fire when
+  // a new empresa is created (skipNextLoad sets readyToSave before these run).
   useEffect(() => {
     if (!readyToSave.current || !empresaActivaId) return;
     saveState(empresaActivaId, "documents", documents);
-  }, [documents]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [documents, empresaActivaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!readyToSave.current || !empresaActivaId) return;
     saveState(empresaActivaId, "reports", generatedReports);
-  }, [generatedReports]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [generatedReports, empresaActivaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!readyToSave.current || !empresaActivaId) return;
     saveState(empresaActivaId, "escenarios", escenarios);
-  }, [escenarios]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [escenarios, empresaActivaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!readyToSave.current || !empresaActivaId) return;
     saveState(empresaActivaId, "analysis", analysisResult);
-  }, [analysisResult]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [analysisResult, empresaActivaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!readyToSave.current || !empresaActivaId) return;
     saveState(empresaActivaId, "extracted_docs", extractedDocsData);
-  }, [extractedDocsData]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [extractedDocsData, empresaActivaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!readyToSave.current || !empresaActivaId) return;
     saveState(empresaActivaId, "campos", campos);
-  }, [campos]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [campos, empresaActivaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!readyToSave.current || !empresaActivaId) return;
     saveState(empresaActivaId, "plan_siembra", planSiembra);
-  }, [planSiembra]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [planSiembra, empresaActivaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!readyToSave.current || !empresaActivaId) return;
     saveState(empresaActivaId, "campana", campanaActual);
-  }, [campanaActual]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [campanaActual, empresaActivaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!readyToSave.current || !empresaActivaId) return;
     saveState(empresaActivaId, "stock_hacienda", stockHacienda);
-  }, [stockHacienda]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [stockHacienda, empresaActivaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!readyToSave.current || !empresaActivaId) return;
     saveState(empresaActivaId, "movimientos_hacienda", movimientosHacienda);
-  }, [movimientosHacienda]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [movimientosHacienda, empresaActivaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!readyToSave.current || !empresaActivaId) return;
     saveState(empresaActivaId, "planos", archivosPlanos);
-  }, [archivosPlanos]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [archivosPlanos, empresaActivaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!readyToSave.current || !empresaActivaId) return;
     saveState(empresaActivaId, "presentaciones", presentaciones);
-  }, [presentaciones]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [presentaciones, empresaActivaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Empresa management actions ────────────────────────────────────────────
   const crearEmpresa = useCallback(async (data: EmpresaFormData): Promise<Empresa | null> => {

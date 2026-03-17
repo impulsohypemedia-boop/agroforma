@@ -413,7 +413,6 @@ type Props = {
   analysis: AnalysisResult;
   generating: string | null;
   bulkProgress: { current: number; total: number; name: string } | null;
-  hasFiles: boolean;
   latestByAnalysisId: Record<string, GeneratedReport>;
   onGenerate: (analysisId: string) => void;
   onGenerateMultiple: (analysisIds: string[]) => void;
@@ -425,7 +424,6 @@ export default function DocumentAnalysis({
   analysis,
   generating,
   bulkProgress,
-  hasFiles,
   latestByAnalysisId,
   onGenerate,
   onGenerateMultiple,
@@ -461,20 +459,6 @@ export default function DocumentAnalysis({
 
   return (
     <section className="space-y-5">
-
-      {/* ── No-files warning ── */}
-      {!hasFiles && (
-        <div
-          className="flex items-start gap-3 rounded-xl px-4 py-3 text-sm border"
-          style={{ backgroundColor: "#FFFBEB", borderColor: "#F5D87A", color: "#92680A" }}
-        >
-          <span className="text-base leading-none mt-0.5">⚠️</span>
-          <span>
-            <strong>No hay datos extraídos en sesión.</strong> Subí los documentos de nuevo para generar nuevos reportes.
-            Los reportes ya generados siguen disponibles para ver y descargar.
-          </span>
-        </div>
-      )}
 
       {/* ── Info bar ── */}
       <div
