@@ -115,6 +115,7 @@ export default function DashboardClient() {
   const [editingEmpresaNombre, setEditingEmpresaNombre] = useState("");
   const pendingFilesRef = useRef<File[]>([]);
   const [extractProgress, setExtractProgress] = useState<{ current: number; total: number } | null>(null);
+  const [processingSteps, setProcessingSteps] = useState<{ label: string; status: "pending" | "active" | "done" }[]>([]);
   const [generating,      setGenerating]      = useState<string | null>(null);
   const [bulkProgress,    setBulkProgress]    = useState<{ current: number; total: number; name: string } | null>(null);
   const [genError,        setGenError]        = useState<string | null>(null);
@@ -210,18 +211,32 @@ export default function DashboardClient() {
   };
 
   // ── Upload & extraction flow ───────────────────────────────────────────────
+  const updateStep = (index: number, status: "pending" | "active" | "done") => {
+    setProcessingSteps(prev => prev.map((s, i) => i === index ? { ...s, status } : s));
+  };
+
   const runAnalysisWithProgress = async (files: File[], eId: string) => {
     setAnalyzing(true);
     setAnalysisResult(null);
     setExtractedDocsData([]);
 
+    const fileNames = files.map(f => f.name);
+    const steps = [
+      { label: `Subiendo ${files.length} documento${files.length > 1 ? "s" : ""}…`, status: "active" as const },
+      ...fileNames.map(n => ({ label: `Extrayendo datos de ${n}…`, status: "pending" as const })),
+      { label: "Identificando reportes disponibles…", status: "pending" as const },
+    ];
+    setProcessingSteps(steps);
+
     // Upload all files to Supabase Storage first
     let uploaded: { name: string; type: string; size: number; path: string }[] = [];
     try {
       uploaded = await uploadFiles(eId, files);
+      updateStep(0, "done");
     } catch (err) {
       setGenError(err instanceof Error ? err.message : "Error al subir archivos");
       setAnalyzing(false);
+      setProcessingSteps([]);
       return;
     }
 
@@ -244,6 +259,7 @@ export default function DashboardClient() {
     if (fileRefs.length > 1) {
       for (let i = 0; i < fileRefs.length; i++) {
         setExtractProgress({ current: i + 1, total: fileRefs.length });
+        updateStep(1 + i, "active");
         try {
           const res = await fetch("/api/analizar-documentos/extraer-uno", {
             method: "POST",
@@ -258,8 +274,9 @@ export default function DashboardClient() {
           if (body.texto) {
             collectedTexts[fileRefs[i].name] = body.texto;
           }
+          updateStep(1 + i, "done");
         } catch {
-          // continue even if one file fails
+          updateStep(1 + i, "done");
         }
       }
       setExtractProgress(null);
@@ -270,6 +287,8 @@ export default function DashboardClient() {
     }
 
     // Step 2: determine available reports
+    const lastStepIdx = steps.length - 1;
+    updateStep(lastStepIdx, "active");
     try {
       let res: Response;
       if (collected.length > 0) {
