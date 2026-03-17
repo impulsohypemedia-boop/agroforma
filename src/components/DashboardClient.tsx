@@ -104,7 +104,7 @@ export default function DashboardClient() {
     extractedDocsData, setExtractedDocsData,
     extractedTexts, setExtractedTexts,
     campos, planSiembra, campanaActual,
-    empresas, empresaActivaId, crearEmpresa,
+    empresas, empresaActivaId, crearEmpresa, setPendingRestore,
   } = useAppContext();
 
   const [modalOpen,       setModalOpen]       = useState(false);
@@ -360,22 +360,29 @@ export default function DashboardClient() {
     }
   };
 
-  // Confirm auto-detected empresa
+  // Confirm auto-detected empresa — restore analysis state that was collected during "sin-empresa" upload
   const handleConfirmEmpresa = async () => {
     const nombre = editingEmpresaNombre.trim();
     if (!nombre) return;
-    const nueva = await crearEmpresa({
+
+    // Set pending restore BEFORE crearEmpresa triggers the load effect.
+    // The load effect always does resetData() + loadAllState(), so any manual
+    // setState calls after crearEmpresa would be overwritten. pendingRestore
+    // merges on top of the loaded state inside the effect itself.
+    setPendingRestore({
+      documents,
+      analysis: analysisResult,
+      extracted_docs: extractedDocsData,
+      extracted_texts: extractedTexts,
+    });
+
+    await crearEmpresa({
       nombre,
       cuit: detectedEmpresa?.cuit,
       actividad: "mixta",
       campana: "2025/26",
     });
     setDetectedEmpresa(null);
-    if (nueva) {
-      // Re-upload files to the real empresa path if we used temp
-      // For now, the files are already in storage under "sin-empresa/" — that's fine
-      // The important thing is the empresa exists and state is linked to it
-    }
   };
 
   // ── Enrich analysis with gestión data ────────────────────────────────────

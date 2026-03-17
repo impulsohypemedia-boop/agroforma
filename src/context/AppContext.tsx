@@ -22,6 +22,7 @@ type AppCtx = {
   empresaActivaId:     string | null;
   empresaActiva:       Empresa | null;
   crearEmpresa:        (data: EmpresaFormData) => Promise<Empresa | null>;
+  setPendingRestore:   (data: Record<string, unknown>) => void;
   cambiarEmpresa:      (id: string) => void;
   editarEmpresa:       (id: string, data: Partial<Empresa>) => void;
   eliminarEmpresa:     (id: string) => void;
@@ -63,6 +64,7 @@ const AppContext = createContext<AppCtx>({
   loadingEmpresas: true, loadingData: false,
   empresas: [], empresaActivaId: null, empresaActiva: null,
   crearEmpresa: async () => null,
+  setPendingRestore: () => {},
   cambiarEmpresa: () => {}, editarEmpresa: () => {}, eliminarEmpresa: () => {},
   fileStore: [], setFileStore: () => {},
   documents: [], setDocuments: () => {},
@@ -110,8 +112,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Gate that prevents saving back immediately after loading from DB
   const readyToSave = useRef(false);
-  // When true, skip loadAllState and instead flush current in-memory state to the new empresa
-  const skipNextLoad = useRef(false);
+  // When set, apply this state AFTER loadAllState completes (for auto-detect empresa flow)
+  const pendingRestore = useRef<Record<string, unknown> | null>(null);
 
   const empresaActiva = empresas.find(e => e.id === empresaActivaId) ?? null;
 
@@ -204,30 +206,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(`agroforma_activa_${user.id}`, empresaActivaId);
     }
 
-    if (skipNextLoad.current) {
-      // Just created empresa — preserve only current analysis/docs (from onboarding flow),
-      // reset everything else so data from another empresa doesn't leak
-      skipNextLoad.current = false;
-      const eId = empresaActivaId;
-      // Keep: documents, fileStore, analysisResult, extractedDocsData, extractedTexts (from current upload)
-      // Reset: reports, campos, plan, hacienda, etc.
-      setGeneratedReports([]); setEscenarios([]);
-      setCampos([]); setPlanSiembra([]); setCampanaActual("2025/26");
-      setStockHacienda([]); setMovimientosHacienda([]);
-      setArchivosPlanos([]); setPlanoBlobMap({});
-      setPresentaciones([]); setPresentacionBlobMap({});
-      // Save the preserved state to the new empresa
-      saveState(eId, "documents", documents);
-      saveState(eId, "analysis", analysisResult);
-      saveState(eId, "extracted_docs", extractedDocsData);
-      saveState(eId, "extracted_texts", extractedTexts);
-      readyToSave.current = true;
-      return;
-    }
-
+    // Always reset and load from DB — ensures complete isolation between empresas
+    resetData();
     setLoadingData(true);
-    loadAllState(empresaActivaId).then((state) => {
-      applyState(state);
+    const eId = empresaActivaId;
+    loadAllState(eId).then((state) => {
+      // If there's a pending restore (auto-detect empresa flow), merge it over the loaded state
+      if (pendingRestore.current) {
+        const restore = pendingRestore.current;
+        pendingRestore.current = null;
+        applyState({ ...state, ...restore });
+        // Save the restored data to the new empresa
+        if (restore.documents) saveState(eId, "documents", restore.documents);
+        if (restore.analysis) saveState(eId, "analysis", restore.analysis);
+        if (restore.extracted_docs) saveState(eId, "extracted_docs", restore.extracted_docs);
+        if (restore.extracted_texts) saveState(eId, "extracted_texts", restore.extracted_texts);
+      } else {
+        applyState(state);
+      }
       setLoadingData(false);
       readyToSave.current = true;
     });
@@ -302,13 +298,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [presentaciones, empresaActivaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Empresa management actions ────────────────────────────────────────────
+  const setPendingRestore = useCallback((data: Record<string, unknown>) => {
+    pendingRestore.current = data;
+  }, []);
+
   const crearEmpresa = useCallback(async (data: EmpresaFormData): Promise<Empresa | null> => {
     if (!user) return null;
     const nueva = await dbCreateEmpresa(user.id, data);
     if (!nueva) return null;
     setEmpresas(prev => [...prev, nueva]);
-    // Preserve current in-memory state (documents, analysis, etc.) when switching to the new empresa
-    skipNextLoad.current = true;
+    // Always clean start — the empresa change effect will resetData + loadAllState (empty for new empresa)
     setEmpresaActivaId(nueva.id);
     return nueva;
   }, [user]);
@@ -340,7 +339,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider value={{
       loadingEmpresas, loadingData,
       empresas, empresaActivaId, empresaActiva,
-      crearEmpresa, cambiarEmpresa, editarEmpresa, eliminarEmpresa,
+      crearEmpresa, setPendingRestore, cambiarEmpresa, editarEmpresa, eliminarEmpresa,
       fileStore, setFileStore,
       documents, setDocuments,
       generatedReports, setGeneratedReports,
