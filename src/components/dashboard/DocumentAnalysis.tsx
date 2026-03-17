@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
   Scale, TrendingUp, BarChart2, GitBranch, Target,
   Calendar, Map, Building2, Loader2, LucideIcon, FileText, Lock,
-  ChevronDown, ChevronRight, CheckCircle2, XCircle, X, Upload, History,
+  ChevronDown, ChevronRight, CheckCircle2, XCircle, X, Upload as UploadIcon, History,
 } from "lucide-react";
 import { AnalysisResult, ReportePosible } from "@/types/analysis";
 import { GeneratedReport } from "@/types/report";
@@ -172,7 +172,7 @@ function RequiredDocsModal({
             className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white cursor-pointer transition-opacity hover:opacity-90 flex items-center justify-center gap-2"
             style={{ backgroundColor: "#3D7A1C" }}
           >
-            <Upload size={14} />
+            <UploadIcon size={14} />
             Subir documentación
           </button>
         </div>
@@ -187,18 +187,22 @@ function AvailableReportCard({
   isGenerating,
   isAnyBusy,
   isSelected,
+  canGenerate,
   latestReport,
   onToggle,
   onGenerate,
+  onUpload,
   onViewReport,
 }: {
   reporte: ReportePosible;
   isGenerating: boolean;
   isAnyBusy: boolean;
   isSelected: boolean;
+  canGenerate: boolean;
   latestReport: GeneratedReport | null;
   onToggle: () => void;
   onGenerate: () => void;
+  onUpload: () => void;
   onViewReport: (r: GeneratedReport) => void;
 }) {
   const Icon = REPORT_ICONS[reporte.id] ?? FileText;
@@ -223,6 +227,10 @@ function AvailableReportCard({
     btnContent = "Ver reporte";
     btnStyle = { borderColor: "#3D7A1C", color: "#3D7A1C", backgroundColor: "#FFFFFF", cursor: "pointer" };
     btnAction = () => onViewReport(latestReport!);
+  } else if (!canGenerate) {
+    btnContent = <><UploadIcon size={13} />Subir documentos</>;
+    btnStyle = { borderColor: "#D6D1C8", color: "#6B6560", backgroundColor: "#F9F8F4", cursor: "pointer" };
+    btnAction = onUpload;
   } else {
     btnContent = "Generar";
     btnStyle = { borderColor: "#3D7A1C", color: "#FFFFFF", backgroundColor: "#3D7A1C", cursor: isAnyBusy ? "not-allowed" : "pointer" };
@@ -239,7 +247,7 @@ function AvailableReportCard({
       <div className="flex items-start justify-between gap-2">
         {/* Checkbox + Icon */}
         <div className="flex items-center gap-2">
-          {implemented && (
+          {implemented && canGenerate && !hasGenerated && (
             <button
               onClick={onToggle}
               className="shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center cursor-pointer transition-colors"
@@ -413,6 +421,7 @@ type Props = {
   analysis: AnalysisResult;
   generating: string | null;
   bulkProgress: { current: number; total: number; name: string } | null;
+  canGenerate: boolean;
   latestByAnalysisId: Record<string, GeneratedReport>;
   onGenerate: (analysisId: string) => void;
   onGenerateMultiple: (analysisIds: string[]) => void;
@@ -424,6 +433,7 @@ export default function DocumentAnalysis({
   analysis,
   generating,
   bulkProgress,
+  canGenerate,
   latestByAnalysisId,
   onGenerate,
   onGenerateMultiple,
@@ -509,8 +519,8 @@ export default function DocumentAnalysis({
                 </div>
               )}
 
-              {/* Select all toggle */}
-              {!isAnyBusy && (
+              {/* Select all toggle — only when can generate */}
+              {canGenerate && !isAnyBusy && (
                 <button
                   onClick={() => {
                     const implementedIds = available.filter(r => IMPLEMENTED.has(r.id)).map(r => r.id);
@@ -525,7 +535,7 @@ export default function DocumentAnalysis({
               )}
 
               {/* Generate selected button */}
-              {selected.size > 0 && !isAnyBusy && (
+              {selected.size > 0 && canGenerate && !isAnyBusy && (
                 <button
                   onClick={handleGenerateSelected}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white cursor-pointer transition-opacity hover:opacity-90"
@@ -545,9 +555,11 @@ export default function DocumentAnalysis({
                 isGenerating={generating === reporte.id}
                 isAnyBusy={isAnyBusy}
                 isSelected={selected.has(reporte.id)}
+                canGenerate={canGenerate}
                 latestReport={latestByAnalysisId[reporte.id] ?? null}
                 onToggle={() => toggleSelect(reporte.id)}
                 onGenerate={() => onGenerate(reporte.id)}
+                onUpload={onUpload}
                 onViewReport={onViewReport}
               />
             ))}

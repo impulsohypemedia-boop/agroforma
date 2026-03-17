@@ -348,9 +348,10 @@ export default function DashboardClient() {
     if (matching.length > 0) latestByAnalysisId[analysisId] = matching[matching.length - 1];
   }
 
-  // ── KPIs ──────────────────────────────────────────────────────────────────
-  const reportesDisponibles = enrichedAnalysis?.reportes_posibles.filter((r) => r.disponible).length ?? 0;
+  // ── Can generate? (extracted data in memory from current session) ────────
+  const canGenerate = extractedDocsData.length > 0;
 
+  // ── KPIs ──────────────────────────────────────────────────────────────────
   const kpis = [
     {
       label: "Documentos cargados",
@@ -360,20 +361,17 @@ export default function DashboardClient() {
         : "Ningún archivo procesado",
     },
     {
-      label: "Reportes disponibles",
-      value: analyzing ? "…" : String(reportesDisponibles),
-      sub: analysisResult
-        ? `${reportesDisponibles} de ${enrichedAnalysis!.reportes_posibles.length} posibles`
-        : analyzing ? "Analizando documentos…" : "Subí documentos para ver",
-      accent: reportesDisponibles > 0,
-    },
-    {
       label: "Reportes generados",
       value: String(generatedReports.length),
       sub: generatedReports.length > 0
         ? `Último: ${generatedReports[generatedReports.length - 1].title}`
         : "Sin reportes generados",
       accent: generatedReports.length > 0,
+    },
+    {
+      label: "Empresa",
+      value: analysisResult?.empresa ?? "—",
+      sub: analysisResult?.cuit ?? "Subí documentos para detectar",
     },
   ];
 
@@ -587,12 +585,60 @@ export default function DashboardClient() {
                 analysis={enrichedAnalysis}
                 generating={generating}
                 bulkProgress={bulkProgress}
+                canGenerate={canGenerate}
                 latestByAnalysisId={latestByAnalysisId}
                 onGenerate={handleGenerate}
                 onGenerateMultiple={handleGenerateMultiple}
                 onViewReport={(r) => setPreviewReport(r)}
                 onUpload={() => setModalOpen(true)}
               />
+            ) : generatedReports.length > 0 ? (
+              /* No analysis result but have generated reports — show them */
+              <section className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#9B9488" }}>
+                    Reportes generados
+                  </h2>
+                  <button
+                    onClick={() => setModalOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white cursor-pointer transition-opacity hover:opacity-90"
+                    style={{ backgroundColor: "#3D7A1C" }}
+                  >
+                    <Upload size={12} />
+                    Subir documentos para generar más
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {generatedReports.map((r) => (
+                    <div
+                      key={r.id}
+                      className="rounded-xl border p-5 flex flex-col gap-3"
+                      style={{ borderColor: "#C8E6C0", backgroundColor: "#FFFFFF" }}
+                    >
+                      <h3 className="font-semibold text-sm" style={{ color: "#1A1A1A" }}>{r.title}</h3>
+                      <p className="text-xs" style={{ color: "#9B9488" }}>
+                        {new Date(r.generatedAt).toLocaleDateString("es-AR")}
+                      </p>
+                      <div className="flex gap-2 mt-auto">
+                        <button
+                          onClick={() => setPreviewReport(r)}
+                          className="flex-1 py-2 rounded-lg text-xs font-semibold border cursor-pointer transition-colors hover:bg-gray-50"
+                          style={{ borderColor: "#3D7A1C", color: "#3D7A1C" }}
+                        >
+                          Ver
+                        </button>
+                        <button
+                          onClick={() => triggerExcelDownload(r)}
+                          className="flex-1 py-2 rounded-lg text-xs font-semibold text-white cursor-pointer transition-opacity hover:opacity-90"
+                          style={{ backgroundColor: "#3D7A1C" }}
+                        >
+                          Descargar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
             ) : documents.length === 0 ? (
               <section className="space-y-6">
                 {/* Header */}
