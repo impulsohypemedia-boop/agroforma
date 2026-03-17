@@ -49,6 +49,9 @@ Extraé los números exactos del documento. Los números deben ser valores numé
 export async function POST(request: NextRequest) {
   try {
     const { extractedData, textos_extraidos } = await request.json();
+    console.log(`[situacion-patrimonial] extractedData: ${extractedData ? extractedData.length + " items" : "null"}`);
+    console.log(`[situacion-patrimonial] textos_extraidos: ${textos_extraidos ? Object.keys(textos_extraidos).length + " files, total " + Object.values(textos_extraidos).reduce((a: number, b: unknown) => a + String(b).length, 0) + " chars" : "null"}`);
+
     if ((!extractedData || extractedData.length === 0) && !textos_extraidos) {
       return NextResponse.json({ error: "No se recibieron datos" }, { status: 400 });
     }
@@ -63,6 +66,7 @@ export async function POST(request: NextRequest) {
         .join("\n\n");
       userContent = `Contenido de los documentos contables:\n\n${textos}\n\nGenerá el JSON de la Situación Patrimonial.`;
     }
+    console.log(`[situacion-patrimonial] userContent length: ${userContent.length} chars (mode: ${extractedData?.length > 0 ? "structured" : "raw_texts"})`);
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 

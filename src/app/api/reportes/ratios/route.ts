@@ -54,6 +54,8 @@ Respondé SOLO con el JSON, sin texto adicional, sin bloques de código markdown
 export async function POST(request: NextRequest) {
   try {
     const { extractedData, textos_extraidos } = await request.json();
+    console.log(`[ratios] extractedData: ${extractedData?.length ?? "null"}, textos: ${textos_extraidos ? Object.keys(textos_extraidos).length + " files" : "null"}`);
+
     if ((!extractedData || extractedData.length === 0) && !textos_extraidos) {
       return NextResponse.json({ error: "No se recibieron datos" }, { status: 400 });
     }
@@ -67,6 +69,7 @@ export async function POST(request: NextRequest) {
         .join("\n\n");
       userContent = `Contenido de los documentos contables:\n\n${textos}\n\nGenerá el JSON de Ratios e Indicadores.`;
     }
+    console.log(`[ratios] prompt length: ${userContent.length} (mode: ${extractedData?.length > 0 ? "structured" : "raw_texts"})`);
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 

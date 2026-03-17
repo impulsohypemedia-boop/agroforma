@@ -134,6 +134,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // Restore extractedDocsData: prefer extracted_docs array, fallback to individual doc_content_* keys
     let extracted = (s.extracted_docs as ExtractedDocData[] | null) ?? [];
+    console.log(`[applyState] extracted_docs from DB: ${extracted.length} items`);
     if (extracted.length === 0) {
       const docContents: ExtractedDocData[] = [];
       for (const [key, val] of Object.entries(s)) {
@@ -141,10 +142,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
           docContents.push(val as ExtractedDocData);
         }
       }
-      if (docContents.length > 0) extracted = docContents;
+      if (docContents.length > 0) {
+        extracted = docContents;
+        console.log(`[applyState] fallback to doc_content_* keys: ${docContents.length} items`);
+      }
+    }
+    if (extracted.length > 0) {
+      const sample = extracted[0];
+      const nonNullKeys = Object.keys(sample.datos || {}).filter(k => (sample.datos as Record<string, unknown>)[k] !== null);
+      console.log(`[applyState] extractedDocsData[0] empresa: ${sample.empresa}, non-null data keys: ${nonNullKeys.length}`, nonNullKeys.slice(0, 5));
     }
     setExtractedDocsData(extracted);
-    setExtractedTexts(   (s.extracted_texts   as Record<string, string> | null) ?? {});
+    const loadedTexts = (s.extracted_texts as Record<string, string> | null) ?? {};
+    const textKeys = Object.keys(loadedTexts);
+    const totalChars = Object.values(loadedTexts).reduce((a, b) => a + (b?.length ?? 0), 0);
+    console.log(`[applyState] extracted_texts: ${textKeys.length} files, ${totalChars} total chars`, textKeys);
+    setExtractedTexts(loadedTexts);
 
     setCampos(              (s.campos                as Campo[]              | null) ?? []);
     setPlanSiembra(         (s.plan_siembra          as Lote[]               | null) ?? []);

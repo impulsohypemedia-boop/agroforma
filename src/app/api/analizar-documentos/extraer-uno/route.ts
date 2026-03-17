@@ -98,7 +98,12 @@ export async function POST(request: NextRequest) {
         const result = await parser.getText();
         rawText = result.text;
         await parser.destroy();
-      } catch { rawText = "[No se pudo extraer texto del PDF]"; }
+        console.log(`[extraer-uno] pdf-parse extracted ${rawText.length} chars from "${name}"`);
+        if (rawText.length < 100) console.log(`[extraer-uno] WARNING: very short text: "${rawText.substring(0, 200)}"`);
+      } catch (e) {
+        console.error(`[extraer-uno] pdf-parse FAILED for "${name}":`, e);
+        rawText = "[No se pudo extraer texto del PDF]";
+      }
     } else if (nameLower.endsWith(".csv")) {
       rawText = buffer.toString("utf-8");
       messageContent.push({ type: "text", text: `=== Archivo: ${name} ===\n${rawText}` });
@@ -157,6 +162,8 @@ export async function POST(request: NextRequest) {
     }
     const data = JSON.parse(jsonStr);
     data.nombre_archivo = name;
+    console.log(`[extraer-uno] OK "${name}" → data keys: ${Object.keys(data.datos || {}).filter(k => data.datos[k] !== null).join(", ")}`);
+    console.log(`[extraer-uno] OK "${name}" → rawText length: ${rawText.length}`);
     return NextResponse.json({ data, texto: rawText });
   } catch (err) {
     console.error("Error en /api/analizar-documentos/extraer-uno:", err);

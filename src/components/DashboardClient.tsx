@@ -157,9 +157,12 @@ export default function DashboardClient() {
     const title = reporte?.nombre ?? analysisId;
 
     // Prefer structured extractedData; fallback to raw texts from empresa_state
-    const payload = extractedDocsData.length > 0
+    const useStructured = extractedDocsData.length > 0;
+    const payload = useStructured
       ? { extractedData: extractedDocsData }
       : { textos_extraidos: extractedTexts };
+
+    console.log(`[generateOne] ${analysisId} → mode: ${useStructured ? "structured" : "raw_texts"}, extractedDocsData: ${extractedDocsData.length}, extractedTexts keys: ${Object.keys(extractedTexts).length}, textsSize: ${Object.values(extractedTexts).reduce((a, b) => a + b.length, 0)} chars`);
 
     const res = await fetch(route.apiPath, {
       method: "POST",
@@ -369,7 +372,8 @@ export default function DashboardClient() {
   }
 
   // ── Can generate? (extracted data OR raw texts from Supabase OR files in memory) ──
-  const canGenerate = extractedDocsData.length > 0 || Object.keys(extractedTexts).length > 0 || fileStore.length > 0;
+  const hasTexts = Object.values(extractedTexts).some(t => t && t.length > 10);
+  const canGenerate = extractedDocsData.length > 0 || hasTexts || fileStore.length > 0;
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const kpis = [
