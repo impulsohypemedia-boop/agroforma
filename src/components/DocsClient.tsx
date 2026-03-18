@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Upload, FolderOpen, Eye } from "lucide-react";
+import { Upload, FolderOpen, Eye, Loader2 } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import UploadModal from "@/components/UploadModal";
 import DocPreviewModal from "@/components/DocPreviewModal";
@@ -36,6 +36,34 @@ export default function DocsClient() {
   const [typeFilter,  setTypeFilter]  = useState<string>("Todos");
   const [catFilter,   setCatFilter]   = useState<string>("Todos");
   const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
+
+  const handleViewDoc = async (doc: UploadedDoc) => {
+    // Try in-memory first
+    const inMemory = fileStore.find((x) => x.name === doc.name);
+    if (inMemory) {
+      setPreviewFile(inMemory);
+      return;
+    }
+    // Download from storage
+    if (!doc.storage_path) return;
+    setDownloading(doc.id);
+    try {
+      const res = await fetch("/api/storage/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: doc.storage_path }),
+      });
+      if (!res.ok) throw new Error("Error al descargar");
+      const blob = await res.blob();
+      const file = new File([blob], doc.name, { type: blob.type });
+      setPreviewFile(file);
+    } catch {
+      setError("No se pudo descargar el archivo");
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   const runAnalysis = async (files: File[]) => {
     if (!empresaActivaId) return;
@@ -185,9 +213,9 @@ export default function DocsClient() {
                   <div className="ml-auto shrink-0">
                     <span
                       className="text-xs px-2.5 py-1 rounded-full font-semibold"
-                      style={{ backgroundColor: fileStore.length > 0 ? "#EBF3E8" : "#F4F2EE", color: fileStore.length > 0 ? "#3D7A1C" : "#9B9488" }}
+                      style={{ backgroundColor: "#EBF3E8", color: "#3D7A1C" }}
                     >
-                      {fileStore.length > 0 ? `${fileStore.length} en memoria` : "Sin archivos en memoria"}
+                      {documents.length} documento{documents.length !== 1 ? "s" : ""}
                     </span>
                   </div>
                 </div>
@@ -340,19 +368,17 @@ export default function DocsClient() {
                                 </span>
                               </td>
                               <td className="px-5 py-3">
-                                {(() => {
-                                  const f = fileStore.find((x) => x.name === doc.name);
-                                  if (!f) return null;
-                                  return (
-                                    <button
-                                      onClick={() => setPreviewFile(f)}
-                                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border cursor-pointer hover:bg-gray-50 transition-colors"
-                                      style={{ borderColor: "#D6D1C8", color: "#1A1A1A" }}
-                                    >
-                                      <Eye size={12} /> Ver
-                                    </button>
-                                  );
-                                })()}
+                                {(doc.storage_path || fileStore.find((x) => x.name === doc.name)) && (
+                                  <button
+                                    onClick={() => handleViewDoc(doc)}
+                                    disabled={downloading === doc.id}
+                                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border cursor-pointer hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-wait"
+                                    style={{ borderColor: "#D6D1C8", color: "#1A1A1A" }}
+                                  >
+                                    {downloading === doc.id ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />}
+                                    Ver
+                                  </button>
+                                )}
                               </td>
                             </tr>
                           );

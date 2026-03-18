@@ -2,16 +2,25 @@ import { createClient } from "@/lib/supabase/client";
 
 const BUCKET = "documentos";
 
+async function getUserId(): Promise<string> {
+  const supabase = createClient();
+  const { data } = await supabase.auth.getUser();
+  if (!data?.user?.id) throw new Error("Usuario no autenticado");
+  return data.user.id;
+}
+
 /**
- * Upload a file to Supabase Storage and return its path + signed URL.
+ * Upload a file to Supabase Storage.
+ * Path format: {user_id}/{empresa_id}/{timestamp}_{filename}
  */
 export async function uploadFile(
   empresaId: string,
   file: File
 ): Promise<{ path: string; signedUrl: string }> {
   const supabase = createClient();
+  const userId = await getUserId();
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const path = `${empresaId}/${Date.now()}_${safeName}`;
+  const path = `${userId}/${empresaId}/${Date.now()}_${safeName}`;
 
   const { error } = await supabase.storage
     .from(BUCKET)
