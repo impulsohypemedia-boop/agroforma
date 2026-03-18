@@ -88,6 +88,41 @@ const SYSTEM_PROMPT = `Sos un analista especializado en documentación de empres
       "descripcion": "Formulario unificado para presentación ante bancos",
       "disponible": true,
       "motivo": "Se generará con la información disponible. Los campos faltantes quedarán marcados como pendientes."
+    },
+    {
+      "id": "ebitda",
+      "nombre": "EBITDA Agro",
+      "descripcion": "Resultado operativo antes de impuestos, amortizaciones y financiación",
+      "disponible": true,
+      "motivo": "Se calcula desde el estado de resultados del balance"
+    },
+    {
+      "id": "real_vs_presupuesto",
+      "nombre": "Real vs Presupuestado",
+      "descripcion": "Comparación de resultados reales contra el presupuesto de campaña",
+      "disponible": false,
+      "motivo": "Se necesita balance + presupuesto de campaña"
+    },
+    {
+      "id": "resultado_unidad_negocio",
+      "nombre": "Resultado por Unidad de Negocio",
+      "descripcion": "Resultado segregado por actividad: agricultura, ganadería, servicios",
+      "disponible": true,
+      "motivo": "Se identificarán unidades de negocio desde el balance"
+    },
+    {
+      "id": "dashboard_mensual",
+      "nombre": "Dashboard Mensual",
+      "descripcion": "Tablero mensual con ingresos, egresos y resultado acumulado",
+      "disponible": true,
+      "motivo": "Se estimará mensualmente desde el resultado anual del balance"
+    },
+    {
+      "id": "seguimiento_campana",
+      "nombre": "Seguimiento de Campaña",
+      "descripcion": "Avance de siembra y cosecha vs plan, por lote y cultivo",
+      "disponible": false,
+      "motivo": "Se necesita plan de siembra con datos de avance"
     }
   ]
 }
@@ -97,7 +132,12 @@ Reglas para disponibilidad:
 - margen_bruto: disponible si hay ventas por cultivo o estado de resultados con detalle de ingresos.
 - break_even: SIEMPRE disponible si hay al menos un balance.
 - calificacion_bancaria: SIEMPRE disponible si hay al menos un balance.
+- ebitda: SIEMPRE disponible si hay al menos un balance con estado de resultados.
+- resultado_unidad_negocio: disponible si hay balance con apertura por actividad o detalle de ventas.
+- dashboard_mensual: SIEMPRE disponible si hay al menos un balance.
 - evolucion_historica: disponible si hay 2 o más balances de distintos ejercicios de la misma empresa (modo = "historico"). Si solo hay 1 balance, no está disponible (modo = "simple").
+- real_vs_presupuesto: solo disponible si hay balance + presupuesto de campaña.
+- seguimiento_campana: solo disponible si hay plan de siembra con datos de avance.
 - proyeccion: solo disponible si hay plan de siembra con hectáreas, rindes y precios estimados.
 - ranking_campos: solo disponible si hay detalle de producción por campo.
 

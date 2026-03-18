@@ -52,6 +52,31 @@ const ROUTE_MAP: Record<string, { reportId: string; apiPath: string; downloadPat
     apiPath: "/api/reportes/evolucion-historica",
     downloadPath: "/api/reportes/evolucion-historica/download",
   },
+  ebitda: {
+    reportId: "ebitda",
+    apiPath: "/api/reportes/ebitda",
+    downloadPath: "/api/reportes/ebitda/download",
+  },
+  real_vs_presupuesto: {
+    reportId: "real-vs-presupuesto",
+    apiPath: "/api/reportes/real-vs-presupuesto",
+    downloadPath: "/api/reportes/real-vs-presupuesto/download",
+  },
+  resultado_unidad_negocio: {
+    reportId: "resultado-unidad-negocio",
+    apiPath: "/api/reportes/resultado-unidad-negocio",
+    downloadPath: "/api/reportes/resultado-unidad-negocio/download",
+  },
+  dashboard_mensual: {
+    reportId: "dashboard-mensual",
+    apiPath: "/api/reportes/dashboard-mensual",
+    downloadPath: "/api/reportes/dashboard-mensual/download",
+  },
+  seguimiento_campana: {
+    reportId: "seguimiento-campana",
+    apiPath: "/api/reportes/seguimiento-campana",
+    downloadPath: "/api/reportes/seguimiento-campana/download",
+  },
 };
 
 async function triggerExcelDownload(report: GeneratedReport) {
@@ -437,7 +462,7 @@ export default function DashboardClient() {
       iconColor: "#C0392B",
       iconBg: "#FEE2E2",
       title: "Balances y estados contables",
-      genera: "Situación patrimonial, ratios, margen bruto, bridge",
+      genera: "Situación patrimonial, ratios, margen bruto, bridge, EBITDA, resultado por UN",
       tipos: ["balance"],
     },
     {
@@ -445,7 +470,7 @@ export default function DashboardClient() {
       iconColor: "#3D7A1C",
       iconBg: "#EBF3E8",
       title: "Plan de siembra",
-      genera: "Proyección de campaña, ranking de campos, break-even",
+      genera: "Proyección de campaña, ranking de campos, break-even, seguimiento de campaña",
       tipos: ["plan_siembra"],
     },
     {
@@ -477,7 +502,7 @@ export default function DashboardClient() {
       iconColor: "#059669",
       iconBg: "#D1FAE5",
       title: "Presupuesto de campaña",
-      genera: "Presupuesto vs real, control de gestión",
+      genera: "Real vs presupuestado, control de gestión, dashboard mensual",
       tipos: ["otro"],
     },
   ];

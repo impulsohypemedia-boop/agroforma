@@ -16,6 +16,11 @@ const REPORT_LABELS: Record<string, string> = {
   "break-even":            "Punto de Equilibrio",
   "calificacion-bancaria": "Calificación Bancaria",
   "evolucion-historica":   "Evolución Histórica",
+  "ebitda":                "EBITDA Agro",
+  "real-vs-presupuesto":   "Real vs Presupuestado",
+  "resultado-unidad-negocio": "Resultado por Unidad de Negocio",
+  "dashboard-mensual":     "Dashboard Mensual",
+  "seguimiento-campana":   "Seguimiento de Campaña",
 };
 
 async function triggerExcelDownload(report: GeneratedReport) {

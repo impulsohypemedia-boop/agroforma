@@ -5,6 +5,7 @@ import {
   Scale, TrendingUp, BarChart2, GitBranch, Target,
   Calendar, Map, Building2, Loader2, LucideIcon, FileText, Lock,
   ChevronDown, ChevronRight, CheckCircle2, XCircle, X, Upload as UploadIcon, History, RefreshCw,
+  DollarSign, ArrowLeftRight, PieChart, LayoutDashboard, ClipboardCheck,
 } from "lucide-react";
 import { AnalysisResult, ReportePosible } from "@/types/analysis";
 import { GeneratedReport } from "@/types/report";
@@ -20,12 +21,19 @@ const REPORT_ICONS: Record<string, LucideIcon> = {
   ranking_campos:         Map,
   calificacion_bancaria:  Building2,
   evolucion_historica:    History,
+  ebitda:                 DollarSign,
+  real_vs_presupuesto:    ArrowLeftRight,
+  resultado_unidad_negocio: PieChart,
+  dashboard_mensual:      LayoutDashboard,
+  seguimiento_campana:    ClipboardCheck,
 };
 
 // ─── Implemented report IDs ───────────────────────────────────────────────────
 const IMPLEMENTED = new Set([
   "situacion_patrimonial", "margen_bruto", "ratios",
   "bridge", "break_even", "calificacion_bancaria", "evolucion_historica",
+  "ebitda", "real_vs_presupuesto", "resultado_unidad_negocio",
+  "dashboard_mensual", "seguimiento_campana",
 ]);
 
 // ─── Report descriptions (what it IS, not what's needed) ─────────────────────
@@ -39,6 +47,11 @@ const REPORT_DESCRIPTIONS: Record<string, string> = {
   ranking_campos:         "Productividad por campo ordenada por rendimiento para optimizar decisiones",
   calificacion_bancaria:  "Formulario unificado de calificación para presentación ante entidades bancarias",
   evolucion_historica:    "Análisis de evolución de resultados, patrimonio y ratios a lo largo de múltiples ejercicios",
+  ebitda:                 "Resultado operativo antes de impuestos, amortizaciones y financiación",
+  real_vs_presupuesto:    "Comparación de resultados reales contra el presupuesto de campaña",
+  resultado_unidad_negocio: "Resultado segregado por actividad: agricultura, ganadería, servicios",
+  dashboard_mensual:      "Tablero mensual con ingresos, egresos y resultado acumulado",
+  seguimiento_campana:    "Avance de siembra y cosecha vs plan, por lote y cultivo",
 };
 
 // ─── Hints for available reports ──────────────────────────────────────────────
@@ -50,6 +63,11 @@ const REPORT_HINTS: Record<string, string> = {
   break_even:             "Necesita plan de siembra con costos por cultivo",
   calificacion_bancaria:  "Sumá datos de campos y hacienda para completar",
   evolucion_historica:    "Disponible con 2 o más balances de la misma empresa",
+  ebitda:                 "Se calcula automáticamente desde el balance",
+  real_vs_presupuesto:    "Necesita balance + presupuesto de campaña",
+  resultado_unidad_negocio: "Mejor con balance que tenga apertura por actividad",
+  dashboard_mensual:      "Se estima con estacionalidad típica del agro",
+  seguimiento_campana:    "Necesita plan de siembra con datos de avance",
 };
 
 // ─── Required docs per unavailable report ────────────────────────────────────
@@ -61,6 +79,13 @@ const REQUIRED_DOCS: Record<string, { label: string; tipos: string[] }[]> = {
   ranking_campos: [
     { label: "Planilla de producción detallada por campo o potrero", tipos: ["planilla_stock", "plan_siembra"] },
     { label: "Balance o estado de resultados", tipos: ["balance"] },
+  ],
+  real_vs_presupuesto: [
+    { label: "Balance o estado de resultados (datos reales)", tipos: ["balance"] },
+    { label: "Presupuesto de campaña (datos proyectados)", tipos: ["otro", "plan_siembra"] },
+  ],
+  seguimiento_campana: [
+    { label: "Plan de siembra con hectáreas y cultivos", tipos: ["plan_siembra"] },
   ],
 };
 

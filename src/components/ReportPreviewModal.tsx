@@ -1438,15 +1438,360 @@ function InsufficientDataView({ reportId, d, onClose }: { reportId: string; d: a
   );
 }
 
+// ─── Shared table cell styles ─────────────────────────────────────────────────
+const TH: React.CSSProperties = { padding: "10px 14px", fontSize: 11, fontWeight: 600, color: "#9B9488", textTransform: "uppercase", letterSpacing: "0.5px" };
+const TD: React.CSSProperties = { padding: "10px 14px", fontSize: 13, color: "#1A1A1A" };
+
+// ─── EBITDA Table ─────────────────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function EbitdaTable({ d }: { d: any }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Big EBITDA indicator */}
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 180, padding: "20px 24px", borderRadius: 12, backgroundColor: "#EBF3E8", border: "1px solid #C8E6C0" }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "#6B6560", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>EBITDA</p>
+          <p style={{ fontSize: 28, fontWeight: 700, color: "#3D7A1C" }}>{fmt(d.ebitda)}</p>
+        </div>
+        <div style={{ flex: 1, minWidth: 180, padding: "20px 24px", borderRadius: 12, backgroundColor: "#F9F8F4", border: "1px solid #E8E5DE" }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "#6B6560", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Margen EBITDA</p>
+          <p style={{ fontSize: 28, fontWeight: 700, color: "#1A1A1A" }}>{toNum(d.ebitda_margin_pct).toFixed(1)}%</p>
+        </div>
+        <div style={{ flex: 1, minWidth: 180, padding: "20px 24px", borderRadius: 12, backgroundColor: "#F9F8F4", border: "1px solid #E8E5DE" }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "#6B6560", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Ventas Netas</p>
+          <p style={{ fontSize: 28, fontWeight: 700, color: "#1A1A1A" }}>{fmt(d.ventas_netas)}</p>
+        </div>
+      </div>
+      {/* Waterfall table */}
+      {d.detalle?.length > 0 && (
+        <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid #E8E5DE" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ backgroundColor: "#FAFAF8" }}>
+                <th style={{ ...TH, textAlign: "left" }}>Concepto</th>
+                <th style={{ ...TH, textAlign: "right" }}>Monto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {d.detalle.map((row: { concepto: string; monto: number }, i: number) => {
+                const isTotal = row.concepto?.startsWith("=");
+                return (
+                  <tr key={i} style={{ borderTop: "1px solid #F0EDE6", backgroundColor: isTotal ? "#F5FAF3" : undefined }}>
+                    <td style={{ ...TD, fontWeight: isTotal ? 700 : 400 }}>{row.concepto}</td>
+                    <td style={{ ...TD, textAlign: "right", fontWeight: isTotal ? 700 : 400, color: isTotal ? "#3D7A1C" : undefined }}>{fmt(row.monto)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {d.interpretacion && (
+        <div style={{ padding: "16px 20px", borderRadius: 12, backgroundColor: "#F9F8F4", border: "1px solid #E8E5DE" }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "#9B9488", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Interpretación</p>
+          <p style={{ fontSize: 13, color: "#1A1A1A", lineHeight: 1.6 }}>{d.interpretacion}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Real vs Presupuesto Table ────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function RealVsPresupuestoTable({ d }: { d: any }) {
+  const r = d.resumen ?? {};
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Summary cards */}
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        {[
+          { label: "Ingresos", real: r.ingreso_real, presup: r.ingreso_presupuestado, desvio: r.desvio_ingreso_pct },
+          { label: "Costos", real: r.costo_real, presup: r.costo_presupuestado, desvio: r.desvio_costo_pct },
+          { label: "Resultado", real: r.resultado_real, presup: r.resultado_presupuestado, desvio: r.desvio_resultado_pct },
+        ].map((item) => (
+          <div key={item.label} style={{ flex: 1, minWidth: 180, padding: "16px 20px", borderRadius: 12, backgroundColor: "#F9F8F4", border: "1px solid #E8E5DE" }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: "#9B9488", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>{item.label}</p>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+              <span style={{ color: "#6B6560" }}>Real: {fmt(item.real)}</span>
+              <span style={{ color: "#6B6560" }}>Presup: {fmt(item.presup)}</span>
+            </div>
+            <p style={{ fontSize: 16, fontWeight: 700, color: toNum(item.desvio) >= 0 ? "#3D7A1C" : "#C0392B" }}>
+              {toNum(item.desvio) >= 0 ? "+" : ""}{toNum(item.desvio).toFixed(1)}%
+            </p>
+          </div>
+        ))}
+      </div>
+      {/* Per-crop table */}
+      {d.por_cultivo?.length > 0 && (
+        <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid #E8E5DE" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr style={{ backgroundColor: "#FAFAF8" }}>
+                {["Cultivo", "Has Real", "Has Presup", "Ingreso Real", "Ingreso Presup", "Margen Real", "Margen Presup", "Desvío"].map(h => (
+                  <th key={h} style={{ ...TH, textAlign: h === "Cultivo" ? "left" : "right", fontSize: 10 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {d.por_cultivo.map((row: Record<string, unknown>, i: number) => (
+                <tr key={i} style={{ borderTop: "1px solid #F0EDE6" }}>
+                  <td style={{ ...TD, fontWeight: 600 }}>{String(row.cultivo ?? "")}</td>
+                  <td style={{ ...TD, textAlign: "right" }}>{fmt(row.has_real)}</td>
+                  <td style={{ ...TD, textAlign: "right" }}>{fmt(row.has_presup)}</td>
+                  <td style={{ ...TD, textAlign: "right" }}>{fmt(row.ingreso_real)}</td>
+                  <td style={{ ...TD, textAlign: "right" }}>{fmt(row.ingreso_presup)}</td>
+                  <td style={{ ...TD, textAlign: "right" }}>{fmt(row.margen_real)}</td>
+                  <td style={{ ...TD, textAlign: "right" }}>{fmt(row.margen_presup)}</td>
+                  <td style={{ ...TD, textAlign: "right", fontWeight: 600, color: toNum(row.desvio_pct) >= 0 ? "#3D7A1C" : "#C0392B" }}>
+                    {toNum(row.desvio_pct) >= 0 ? "+" : ""}{toNum(row.desvio_pct).toFixed(1)}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {/* Desvíos */}
+      {d.principales_desvios?.length > 0 && (
+        <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid #E8E5DE" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ backgroundColor: "#FAFAF8" }}>
+                <th style={{ ...TH, textAlign: "left" }}>Desvío</th>
+                <th style={{ ...TH, textAlign: "right" }}>Monto</th>
+                <th style={{ ...TH, textAlign: "left" }}>Causa</th>
+              </tr>
+            </thead>
+            <tbody>
+              {d.principales_desvios.map((row: { concepto: string; desvio: number; causa: string }, i: number) => (
+                <tr key={i} style={{ borderTop: "1px solid #F0EDE6" }}>
+                  <td style={{ ...TD, fontWeight: 600 }}>{row.concepto}</td>
+                  <td style={{ ...TD, textAlign: "right", color: toNum(row.desvio) >= 0 ? "#3D7A1C" : "#C0392B" }}>{fmt(row.desvio)}</td>
+                  <td style={{ ...TD, color: "#6B6560" }}>{row.causa}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {d.interpretacion && (
+        <div style={{ padding: "16px 20px", borderRadius: 12, backgroundColor: "#F9F8F4", border: "1px solid #E8E5DE" }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "#9B9488", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Interpretación</p>
+          <p style={{ fontSize: 13, color: "#1A1A1A", lineHeight: 1.6 }}>{d.interpretacion}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Resultado por UN Table ───────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function ResultadoUNTable({ d }: { d: any }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {d.unidades?.length > 0 && (
+        <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid #E8E5DE" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ backgroundColor: "#FAFAF8" }}>
+                {["Unidad de Negocio", "Ingresos", "Costos Directos", "Margen Bruto", "Margen %", "Resultado Neto", "Particip. %"].map(h => (
+                  <th key={h} style={{ ...TH, textAlign: h === "Unidad de Negocio" ? "left" : "right" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {d.unidades.map((u: Record<string, unknown>, i: number) => (
+                <tr key={i} style={{ borderTop: "1px solid #F0EDE6" }}>
+                  <td style={{ ...TD, fontWeight: 600 }}>{String(u.nombre ?? "")}</td>
+                  <td style={{ ...TD, textAlign: "right" }}>{fmt(u.ingresos)}</td>
+                  <td style={{ ...TD, textAlign: "right" }}>{fmt(u.costos_directos)}</td>
+                  <td style={{ ...TD, textAlign: "right" }}>{fmt(u.margen_bruto)}</td>
+                  <td style={{ ...TD, textAlign: "right" }}>{toNum(u.margen_pct).toFixed(1)}%</td>
+                  <td style={{ ...TD, textAlign: "right", fontWeight: 600, color: toNum(u.resultado_neto) >= 0 ? "#3D7A1C" : "#C0392B" }}>{fmt(u.resultado_neto)}</td>
+                  <td style={{ ...TD, textAlign: "right" }}>{toNum(u.participacion_ventas_pct).toFixed(1)}%</td>
+                </tr>
+              ))}
+              {d.total && (
+                <tr style={{ borderTop: "2px solid #3D7A1C", backgroundColor: "#F5FAF3" }}>
+                  <td style={{ ...TD, fontWeight: 700 }}>TOTAL</td>
+                  <td style={{ ...TD, textAlign: "right", fontWeight: 700 }}>{fmt(d.total.ingresos)}</td>
+                  <td style={{ ...TD, textAlign: "right", fontWeight: 700 }}>{fmt(d.total.costos)}</td>
+                  <td colSpan={2} />
+                  <td style={{ ...TD, textAlign: "right", fontWeight: 700, color: "#3D7A1C" }}>{fmt(d.total.resultado)}</td>
+                  <td style={{ ...TD, textAlign: "right", fontWeight: 700 }}>100%</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        {d.mejor_unidad && (
+          <div style={{ flex: 1, minWidth: 180, padding: "16px 20px", borderRadius: 12, backgroundColor: "#EBF3E8", border: "1px solid #C8E6C0" }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: "#6B6560", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Mejor unidad</p>
+            <p style={{ fontSize: 18, fontWeight: 700, color: "#3D7A1C" }}>{d.mejor_unidad}</p>
+          </div>
+        )}
+        {d.peor_unidad && (
+          <div style={{ flex: 1, minWidth: 180, padding: "16px 20px", borderRadius: 12, backgroundColor: "#FEE9E9", border: "1px solid #FBCFCF" }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: "#6B6560", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Peor unidad</p>
+            <p style={{ fontSize: 18, fontWeight: 700, color: "#C0392B" }}>{d.peor_unidad}</p>
+          </div>
+        )}
+      </div>
+      {d.interpretacion && (
+        <div style={{ padding: "16px 20px", borderRadius: 12, backgroundColor: "#F9F8F4", border: "1px solid #E8E5DE" }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "#9B9488", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Interpretación</p>
+          <p style={{ fontSize: 13, color: "#1A1A1A", lineHeight: 1.6 }}>{d.interpretacion}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Dashboard Mensual Table ──────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function DashboardMensualTable({ d }: { d: any }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 150, padding: "16px 20px", borderRadius: 12, backgroundColor: "#EBF3E8", border: "1px solid #C8E6C0" }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "#6B6560", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Total Ingresos</p>
+          <p style={{ fontSize: 22, fontWeight: 700, color: "#3D7A1C" }}>{fmt(d.total_ingresos)}</p>
+        </div>
+        <div style={{ flex: 1, minWidth: 150, padding: "16px 20px", borderRadius: 12, backgroundColor: "#FEE9E9", border: "1px solid #FBCFCF" }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "#6B6560", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Total Egresos</p>
+          <p style={{ fontSize: 22, fontWeight: 700, color: "#C0392B" }}>{fmt(d.total_egresos)}</p>
+        </div>
+        <div style={{ flex: 1, minWidth: 150, padding: "16px 20px", borderRadius: 12, backgroundColor: "#F9F8F4", border: "1px solid #E8E5DE" }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "#6B6560", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Resultado Anual</p>
+          <p style={{ fontSize: 22, fontWeight: 700, color: toNum(d.resultado_anual) >= 0 ? "#3D7A1C" : "#C0392B" }}>{fmt(d.resultado_anual)}</p>
+        </div>
+      </div>
+      {d.meses?.length > 0 && (
+        <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid #E8E5DE" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ backgroundColor: "#FAFAF8" }}>
+                {["Mes", "Ingresos", "Egresos", "Resultado", "Acumulado"].map(h => (
+                  <th key={h} style={{ ...TH, textAlign: h === "Mes" ? "left" : "right" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {d.meses.map((m: { mes: string; ingresos: number; egresos: number; resultado: number; acumulado: number }, i: number) => (
+                <tr key={i} style={{ borderTop: "1px solid #F0EDE6" }}>
+                  <td style={{ ...TD, fontWeight: 600 }}>{m.mes}</td>
+                  <td style={{ ...TD, textAlign: "right", color: "#3D7A1C" }}>{fmt(m.ingresos)}</td>
+                  <td style={{ ...TD, textAlign: "right", color: "#C0392B" }}>{fmt(m.egresos)}</td>
+                  <td style={{ ...TD, textAlign: "right", fontWeight: 600, color: toNum(m.resultado) >= 0 ? "#3D7A1C" : "#C0392B" }}>{fmt(m.resultado)}</td>
+                  <td style={{ ...TD, textAlign: "right" }}>{fmt(m.acumulado)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {d.interpretacion && (
+        <div style={{ padding: "16px 20px", borderRadius: 12, backgroundColor: "#F9F8F4", border: "1px solid #E8E5DE" }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "#9B9488", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Interpretación</p>
+          <p style={{ fontSize: 13, color: "#1A1A1A", lineHeight: 1.6 }}>{d.interpretacion}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Seguimiento Campaña Table ────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function SeguimientoCampanaTable({ d }: { d: any }) {
+  const estadoColors: Record<string, { bg: string; text: string }> = {
+    cosechado: { bg: "#EBF3E8", text: "#3D7A1C" },
+    en_cosecha: { bg: "#FEF9C3", text: "#D97706" },
+    sembrado: { bg: "#DBEAFE", text: "#2563EB" },
+    en_siembra: { bg: "#FEF3C7", text: "#B8922A" },
+    pendiente: { bg: "#F0EDE6", text: "#9B9488" },
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ padding: "20px 24px", borderRadius: 12, backgroundColor: "#EBF3E8", border: "1px solid #C8E6C0" }}>
+        <p style={{ fontSize: 11, fontWeight: 600, color: "#6B6560", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Avance General</p>
+        <p style={{ fontSize: 32, fontWeight: 700, color: "#3D7A1C" }}>{toNum(d.avance_general_pct).toFixed(0)}%</p>
+        <div style={{ width: "100%", height: 8, borderRadius: 4, backgroundColor: "#C8E6C0", marginTop: 8 }}>
+          <div style={{ width: `${Math.min(100, toNum(d.avance_general_pct))}%`, height: "100%", borderRadius: 4, backgroundColor: "#3D7A1C" }} />
+        </div>
+      </div>
+      {d.por_cultivo?.length > 0 && (
+        <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid #E8E5DE" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr style={{ backgroundColor: "#FAFAF8" }}>
+                {["Cultivo", "Has Plan", "Has Sembr.", "Avance Siembra", "Has Cosech.", "Avance Cosecha", "Rinde Esp.", "Rinde Real", "Estado"].map(h => (
+                  <th key={h} style={{ ...TH, textAlign: h === "Cultivo" || h === "Estado" ? "left" : "right", fontSize: 10 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {d.por_cultivo.map((row: Record<string, unknown>, i: number) => {
+                const estado = String(row.estado ?? "pendiente");
+                const ec = estadoColors[estado] ?? estadoColors.pendiente;
+                return (
+                  <tr key={i} style={{ borderTop: "1px solid #F0EDE6" }}>
+                    <td style={{ ...TD, fontWeight: 600 }}>{String(row.cultivo ?? "")}</td>
+                    <td style={{ ...TD, textAlign: "right" }}>{fmt(row.has_plan)}</td>
+                    <td style={{ ...TD, textAlign: "right" }}>{fmt(row.has_sembradas)}</td>
+                    <td style={{ ...TD, textAlign: "right" }}>{toNum(row.avance_siembra_pct).toFixed(0)}%</td>
+                    <td style={{ ...TD, textAlign: "right" }}>{fmt(row.has_cosechadas)}</td>
+                    <td style={{ ...TD, textAlign: "right" }}>{toNum(row.avance_cosecha_pct).toFixed(0)}%</td>
+                    <td style={{ ...TD, textAlign: "right" }}>{fmt(row.rinde_esperado)}</td>
+                    <td style={{ ...TD, textAlign: "right" }}>{fmt(row.rinde_real)}</td>
+                    <td style={TD}>
+                      <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 4, backgroundColor: ec.bg, color: ec.text }}>
+                        {estado.replace(/_/g, " ")}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {d.alertas?.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "#9B9488", textTransform: "uppercase", letterSpacing: 1 }}>Alertas</p>
+          {d.alertas.map((a: { cultivo: string; tipo: string; mensaje: string }, i: number) => (
+            <div key={i} style={{ padding: "10px 16px", borderRadius: 8, backgroundColor: "#FEF3CD", border: "1px solid #FBDBA7", fontSize: 12 }}>
+              <span style={{ fontWeight: 600, color: "#92680A" }}>{a.cultivo} — {a.tipo}: </span>
+              <span style={{ color: "#1A1A1A" }}>{a.mensaje}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {d.interpretacion && (
+        <div style={{ padding: "16px 20px", borderRadius: 12, backgroundColor: "#F9F8F4", border: "1px solid #E8E5DE" }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "#9B9488", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Interpretación</p>
+          <p style={{ fontSize: 13, color: "#1A1A1A", lineHeight: 1.6 }}>{d.interpretacion}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Dispatcher ───────────────────────────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function ReportTable({ reportId, d }: { reportId: string; d: any }) {
-  if (reportId === "margen-bruto")          return <MargenBrutoTable d={d} />;
-  if (reportId === "ratios")                return <RatiosTable d={d} />;
-  if (reportId === "bridge")                return <BridgeTable d={d} />;
-  if (reportId === "break-even")            return <BreakEvenTable d={d} />;
-  if (reportId === "calificacion-bancaria") return <CalificacionBancariaTable d={d} />;
-  if (reportId === "evolucion-historica")   return <EvolucionHistoricaTable d={d} />;
+  if (reportId === "margen-bruto")              return <MargenBrutoTable d={d} />;
+  if (reportId === "ratios")                    return <RatiosTable d={d} />;
+  if (reportId === "bridge")                    return <BridgeTable d={d} />;
+  if (reportId === "break-even")                return <BreakEvenTable d={d} />;
+  if (reportId === "calificacion-bancaria")     return <CalificacionBancariaTable d={d} />;
+  if (reportId === "evolucion-historica")        return <EvolucionHistoricaTable d={d} />;
+  if (reportId === "ebitda")                    return <EbitdaTable d={d} />;
+  if (reportId === "real-vs-presupuesto")       return <RealVsPresupuestoTable d={d} />;
+  if (reportId === "resultado-unidad-negocio")  return <ResultadoUNTable d={d} />;
+  if (reportId === "dashboard-mensual")         return <DashboardMensualTable d={d} />;
+  if (reportId === "seguimiento-campana")       return <SeguimientoCampanaTable d={d} />;
   return <PatrimonialTable d={d} />;
 }
 
