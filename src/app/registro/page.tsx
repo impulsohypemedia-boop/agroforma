@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import AuthLayout from "@/components/AuthLayout";
 
 export default function RegistroPage() {
   const router = useRouter();
@@ -52,8 +53,8 @@ export default function RegistroPage() {
 
   if (success) {
     return (
-      <div style={{ minHeight: "100vh", backgroundColor: "#F9F8F4", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-        <div style={{ textAlign: "center", maxWidth: 400 }}>
+      <AuthLayout>
+        <div style={{ textAlign: "center" }}>
           <div style={{ width: 56, height: 56, borderRadius: "50%", backgroundColor: "#EBF3E8", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
             <svg width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="#3D7A1C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
           </div>
@@ -63,151 +64,123 @@ export default function RegistroPage() {
           </p>
           <p style={{ fontSize: 12, color: "#9B9488", marginTop: 16 }}>Redirigiendo al login…</p>
         </div>
-      </div>
+      </AuthLayout>
     );
   }
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#F9F8F4", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-      <div style={{ width: "100%", maxWidth: 420 }}>
+    <AuthLayout>
+      {/* Logo */}
+      <div style={{ textAlign: "center", marginBottom: 36 }}>
+        <h1 style={{ fontFamily: "var(--font-fraunces)", fontSize: 38, fontWeight: 600, color: "#1A3311", letterSpacing: "-0.5px", margin: 0 }}>
+          AgroForma<span style={{ color: "#D4AD3C" }}>.</span>
+        </h1>
+      </div>
 
-        {/* Logo */}
-        <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <h1 style={{ fontFamily: "var(--font-fraunces)", fontSize: 38, fontWeight: 600, color: "#1A3311", letterSpacing: "-0.5px", margin: 0 }}>
-            AgroForma<span style={{ color: "#D4AD3C" }}>.</span>
-          </h1>
-          <p style={{ marginTop: 10, fontSize: 14, color: "#6B6560", lineHeight: 1.5, maxWidth: 320, margin: "10px auto 0" }}>
-            La inteligencia artificial de la empresa agropecuaria argentina
-          </p>
+      {/* Card */}
+      <div style={{ backgroundColor: "#FFFFFF", borderRadius: 20, border: "1px solid #E8E5DE", padding: "32px 32px 28px", boxShadow: "0 4px 24px rgba(0,0,0,0.06)" }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1A1A1A", marginBottom: 24, textAlign: "center" }}>
+          Creá tu cuenta
+        </h2>
+
+        {error && (
+          <div style={{ backgroundColor: "#FEE9E9", border: "1px solid #FBCFCF", borderRadius: 10, padding: "10px 14px", marginBottom: 20, fontSize: 13, color: "#C0392B" }}>
+            {error}
+          </div>
+        )}
+
+        <button
+          onClick={handleGoogle}
+          disabled={loading}
+          style={{
+            width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+            padding: "11px 16px", borderRadius: 12, border: "1.5px solid #E8E5DE",
+            backgroundColor: "#FFFFFF", cursor: loading ? "not-allowed" : "pointer",
+            fontSize: 14, fontWeight: 600, color: "#1A1A1A",
+            transition: "background 0.15s", opacity: loading ? 0.7 : 1,
+          }}
+          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#F9F8F4")}
+          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "#FFFFFF")}
+        >
+          <GoogleIcon />
+          Continuar con Google
+        </button>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0" }}>
+          <div style={{ flex: 1, height: 1, backgroundColor: "#E8E5DE" }} />
+          <span style={{ fontSize: 12, color: "#9B9488", fontWeight: 500 }}>o</span>
+          <div style={{ flex: 1, height: 1, backgroundColor: "#E8E5DE" }} />
         </div>
 
-        {/* Card */}
-        <div style={{ backgroundColor: "#FFFFFF", borderRadius: 20, border: "1px solid #E8E5DE", padding: "32px 32px 28px", boxShadow: "0 4px 24px rgba(0,0,0,0.06)" }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1A1A1A", marginBottom: 24, textAlign: "center" }}>
-            Creá tu cuenta
-          </h2>
-
-          {/* Error */}
-          {error && (
-            <div style={{ backgroundColor: "#FEE9E9", border: "1px solid #FBCFCF", borderRadius: 10, padding: "10px 14px", marginBottom: 20, fontSize: 13, color: "#C0392B" }}>
-              {error}
-            </div>
-          )}
-
-          {/* Google */}
-          <button
-            onClick={handleGoogle}
-            disabled={loading}
-            style={{
-              width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-              padding: "11px 16px", borderRadius: 12, border: "1.5px solid #E8E5DE",
-              backgroundColor: "#FFFFFF", cursor: loading ? "not-allowed" : "pointer",
-              fontSize: 14, fontWeight: 600, color: "#1A1A1A",
-              transition: "background 0.15s", opacity: loading ? 0.7 : 1,
-            }}
-            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#F9F8F4")}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "#FFFFFF")}
-          >
-            <GoogleIcon />
-            Continuar con Google
-          </button>
-
-          {/* Divider */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0" }}>
-            <div style={{ flex: 1, height: 1, backgroundColor: "#E8E5DE" }} />
-            <span style={{ fontSize: 12, color: "#9B9488", fontWeight: 500 }}>o</span>
-            <div style={{ flex: 1, height: 1, backgroundColor: "#E8E5DE" }} />
+        <form onSubmit={handleRegister} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#6B6560", marginBottom: 6 }}>Nombre completo</label>
+            <input
+              type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} required
+              placeholder="Juan Pérez"
+              style={{
+                width: "100%", padding: "10px 14px", borderRadius: 10,
+                border: "1.5px solid #E8E5DE", fontSize: 14, color: "#1A1A1A",
+                backgroundColor: "#FAFAF8", outline: "none", boxSizing: "border-box",
+              }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "#3D7A1C")}
+              onBlur={(e) => (e.currentTarget.style.borderColor = "#E8E5DE")}
+            />
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleRegister} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#6B6560", marginBottom: 6 }}>
-                Nombre completo
-              </label>
-              <input
-                type="text"
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                required
-                placeholder="Juan Pérez"
-                style={{
-                  width: "100%", padding: "10px 14px", borderRadius: 10,
-                  border: "1.5px solid #E8E5DE", fontSize: 14, color: "#1A1A1A",
-                  backgroundColor: "#FAFAF8", outline: "none", boxSizing: "border-box",
-                }}
-                onFocus={(e) => (e.currentTarget.style.borderColor = "#3D7A1C")}
-                onBlur={(e) => (e.currentTarget.style.borderColor = "#E8E5DE")}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#6B6560", marginBottom: 6 }}>
-                Email
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="nombre@empresa.com"
-                style={{
-                  width: "100%", padding: "10px 14px", borderRadius: 10,
-                  border: "1.5px solid #E8E5DE", fontSize: 14, color: "#1A1A1A",
-                  backgroundColor: "#FAFAF8", outline: "none", boxSizing: "border-box",
-                }}
-                onFocus={(e) => (e.currentTarget.style.borderColor = "#3D7A1C")}
-                onBlur={(e) => (e.currentTarget.style.borderColor = "#E8E5DE")}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#6B6560", marginBottom: 6 }}>
-                Contraseña
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                placeholder="Mínimo 6 caracteres"
-                style={{
-                  width: "100%", padding: "10px 14px", borderRadius: 10,
-                  border: "1.5px solid #E8E5DE", fontSize: 14, color: "#1A1A1A",
-                  backgroundColor: "#FAFAF8", outline: "none", boxSizing: "border-box",
-                }}
-                onFocus={(e) => (e.currentTarget.style.borderColor = "#3D7A1C")}
-                onBlur={(e) => (e.currentTarget.style.borderColor = "#E8E5DE")}
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#6B6560", marginBottom: 6 }}>Email</label>
+            <input
+              type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
+              placeholder="nombre@empresa.com"
               style={{
-                width: "100%", padding: "11px 16px", borderRadius: 12, border: "none",
-                backgroundColor: loading ? "#6B9F52" : "#3D7A1C", color: "#FFFFFF",
-                fontSize: 14, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer",
-                marginTop: 4, transition: "background 0.15s",
+                width: "100%", padding: "10px 14px", borderRadius: 10,
+                border: "1.5px solid #E8E5DE", fontSize: 14, color: "#1A1A1A",
+                backgroundColor: "#FAFAF8", outline: "none", boxSizing: "border-box",
               }}
-              onMouseOver={(e) => { if (!loading) e.currentTarget.style.backgroundColor = "#2E5E14"; }}
-              onMouseOut={(e) => { if (!loading) e.currentTarget.style.backgroundColor = "#3D7A1C"; }}
-            >
-              {loading ? "Creando cuenta…" : "Crear cuenta"}
-            </button>
-          </form>
-        </div>
+              onFocus={(e) => (e.currentTarget.style.borderColor = "#3D7A1C")}
+              onBlur={(e) => (e.currentTarget.style.borderColor = "#E8E5DE")}
+            />
+          </div>
 
-        {/* Login link */}
-        <p style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "#6B6560" }}>
-          ¿Ya tenés cuenta?{" "}
-          <Link href="/login" style={{ color: "#3D7A1C", fontWeight: 600, textDecoration: "none" }}>
-            Iniciá sesión
-          </Link>
-        </p>
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#6B6560", marginBottom: 6 }}>Contraseña</label>
+            <input
+              type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
+              minLength={6} placeholder="Mínimo 6 caracteres"
+              style={{
+                width: "100%", padding: "10px 14px", borderRadius: 10,
+                border: "1.5px solid #E8E5DE", fontSize: 14, color: "#1A1A1A",
+                backgroundColor: "#FAFAF8", outline: "none", boxSizing: "border-box",
+              }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "#3D7A1C")}
+              onBlur={(e) => (e.currentTarget.style.borderColor = "#E8E5DE")}
+            />
+          </div>
+
+          <button
+            type="submit" disabled={loading}
+            style={{
+              width: "100%", padding: "11px 16px", borderRadius: 12, border: "none",
+              backgroundColor: loading ? "#6B9F52" : "#3D7A1C", color: "#FFFFFF",
+              fontSize: 14, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer",
+              marginTop: 4, transition: "background 0.15s",
+            }}
+            onMouseOver={(e) => { if (!loading) e.currentTarget.style.backgroundColor = "#2E5E14"; }}
+            onMouseOut={(e) => { if (!loading) e.currentTarget.style.backgroundColor = "#3D7A1C"; }}
+          >
+            {loading ? "Creando cuenta…" : "Crear cuenta"}
+          </button>
+        </form>
       </div>
-    </div>
+
+      <p style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "#6B6560" }}>
+        ¿Ya tenés cuenta?{" "}
+        <Link href="/login" style={{ color: "#3D7A1C", fontWeight: 600, textDecoration: "none" }}>
+          Iniciá sesión
+        </Link>
+      </p>
+    </AuthLayout>
   );
 }
 
