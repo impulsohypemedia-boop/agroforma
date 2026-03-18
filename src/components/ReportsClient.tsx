@@ -63,7 +63,7 @@ function DownloadDropdown({ report, onError }: { report: GeneratedReport; onErro
 
       {open && (
         <div
-          className="absolute right-0 mt-1 w-48 rounded-xl border shadow-lg overflow-hidden z-30"
+          className="absolute right-0 mt-1 w-48 rounded-xl border shadow-lg overflow-hidden z-50"
           style={{ backgroundColor: "#FFFFFF", borderColor: "#E8E5DE", top: "100%" }}
         >
           <button
@@ -188,7 +188,7 @@ export default function ReportsClient() {
                 </div>
 
                 {/* Reports table */}
-                <div className="bg-white rounded-xl border overflow-hidden" style={{ borderColor: "#E8E5DE" }}>
+                <div className="bg-white rounded-xl border" style={{ borderColor: "#E8E5DE" }}>
                   <table className="w-full text-sm">
                     <thead>
                       <tr style={{ backgroundColor: "#FAFAF8" }}>

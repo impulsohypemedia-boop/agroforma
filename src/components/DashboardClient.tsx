@@ -157,13 +157,14 @@ export default function DashboardClient() {
     const reporte = analysisResult?.reportes_posibles.find((r) => r.id === analysisId);
     const title = reporte?.nombre ?? analysisId;
 
-    // Prefer structured extractedData; fallback to raw texts from empresa_state
-    const useStructured = extractedDocsData.length > 0;
-    const payload = useStructured
-      ? { extractedData: extractedDocsData }
-      : { textos_extraidos: extractedTexts };
+    // Send both structured data AND raw texts for maximum coverage
+    const hasStructured = extractedDocsData.length > 0;
+    const hasTexts = Object.keys(extractedTexts).length > 0;
+    const payload: Record<string, unknown> = {};
+    if (hasStructured) payload.extractedData = extractedDocsData;
+    if (hasTexts) payload.textos_extraidos = extractedTexts;
 
-    console.log(`[generateOne] ${analysisId} → mode: ${useStructured ? "structured" : "raw_texts"}, extractedDocsData: ${extractedDocsData.length}, extractedTexts keys: ${Object.keys(extractedTexts).length}, textsSize: ${Object.values(extractedTexts).reduce((a, b) => a + b.length, 0)} chars`);
+    console.log(`[generateOne] ${analysisId} → structured: ${extractedDocsData.length}, texts: ${Object.keys(extractedTexts).length}, textsSize: ${Object.values(extractedTexts).reduce((a, b) => a + b.length, 0)} chars`);
 
     const res = await fetch(route.apiPath, {
       method: "POST",

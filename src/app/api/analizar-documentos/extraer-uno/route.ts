@@ -9,6 +9,13 @@ export const maxDuration = 300;
 const SYSTEM_PROMPT = `Sos un analista contable especializado en empresas agropecuarias argentinas.
 Te dan un único documento contable. Extraé TODOS los datos financieros posibles y devolvelos como JSON estructurado.
 
+IMPORTANTE — EXTRACCIÓN EXHAUSTIVA:
+- Extraé absolutamente TODOS los números que aparezcan en el documento. No omitas ninguna línea del estado de resultados ni del estado de situación patrimonial.
+- Si el documento tiene dos ejercicios comparativos (actual y anterior), extraé AMBOS. Usá el campo "datos" para el ejercicio actual y "datos_ejercicio_anterior" para el anterior.
+- Incluí TODAS las líneas de los anexos (Anexo I, II, III, etc.), notas, cuadros de bienes de uso, detalle de deudas, etc.
+- Si el balance tiene un estado de evolución del patrimonio neto, extraelo completo.
+- Cualquier documento que sea un balance, estado contable, o estados financieros debe clasificarse como tipo "balance", sin importar el año o ejercicio.
+
 Devolvé SOLO este JSON (sin markdown, sin bloques de código):
 
 {
@@ -58,6 +65,35 @@ Devolvé SOLO este JSON (sin markdown, sin bloques de código):
     "tipo_cambio_usado": null,
     "notas": null,
     "datos_adicionales": {}
+  },
+  "datos_ejercicio_anterior": {
+    "periodo": "string o null (ej: '31/05/2023')",
+    "activo_corriente": null,
+    "activo_no_corriente": null,
+    "total_activo": null,
+    "pasivo_corriente": null,
+    "pasivo_no_corriente": null,
+    "total_pasivo": null,
+    "patrimonio_neto": null,
+    "ventas_netas": null,
+    "costo_ventas": null,
+    "ganancia_bruta": null,
+    "gastos_administracion": null,
+    "gastos_comercializacion": null,
+    "resultado_operativo": null,
+    "resultado_financiero": null,
+    "resultado_antes_impuestos": null,
+    "impuestos": null,
+    "resultado_neto": null,
+    "ventas_por_cultivo": [],
+    "costos_produccion": [],
+    "disponibilidades": null,
+    "creditos_por_ventas": null,
+    "bienes_de_cambio": null,
+    "bienes_de_uso_total": null,
+    "deudas_bancarias_corrientes": null,
+    "deudas_comerciales_corrientes": null,
+    "datos_adicionales": {}
   }
 }
 
@@ -67,6 +103,7 @@ Para costos_produccion: [{ "cultivo": "Soja", "costo_semilla": number|null, "cos
 Para deudas_detalle: [{ "entidad": "Banco", "monto": number, "moneda": "ARS|USD", "plazo": "corriente|no corriente" }]
 
 Si un dato no existe en el documento, dejá null. NO inventes datos. Extraé TODO lo que encuentres.
+Si el documento NO tiene ejercicio comparativo, dejá datos_ejercicio_anterior como objeto con todos los valores en null.
 
 IMPORTANTE: Además del análisis, incluí un campo "texto_completo" en el JSON raíz (al mismo nivel que "nombre_archivo") con TODO el texto del documento tal cual lo ves, sin resumir, con todos los números, tablas y datos. Este texto se usa para generar reportes después sin tener que volver a leer el PDF.`;
 

@@ -104,14 +104,17 @@ export async function POST(request: NextRequest) {
     }
 
     let userContent: string;
+    const parts: string[] = [];
     if (extractedData && extractedData.length > 0) {
-      userContent = `Datos extraídos de ${extractedData.length} balances:\n${JSON.stringify(extractedData, null, 2)}\n\nAnalizá todos los balances y devolvé el JSON de evolución histórica.`;
-    } else {
+      parts.push(`Datos estructurados extraídos:\n${JSON.stringify(extractedData, null, 2)}`);
+    }
+    if (textos_extraidos && Object.keys(textos_extraidos).length > 0) {
       const textos = Object.entries(textos_extraidos as Record<string, string>)
         .map(([name, text]) => `=== ${name} ===\n${text}`)
         .join("\n\n");
-      userContent = `Contenido de los documentos contables:\n\n${textos}\n\nAnalizá todos los balances y devolvé el JSON de evolución histórica.`;
+      parts.push(`Texto completo de los documentos:\n\n${textos}`);
     }
+    userContent = parts.join("\n\n---\n\n") + `\n\nUsá TODA la información disponible arriba. Generá el JSON de la Evolución Histórica.`;
     console.log(`[evolucion-historica] prompt length: ${userContent.length} (mode: ${extractedData?.length > 0 ? "structured" : "raw_texts"})`);
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });

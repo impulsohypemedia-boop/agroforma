@@ -56,16 +56,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No se recibieron datos" }, { status: 400 });
     }
 
-    // Build user message: prefer extractedData (structured), fallback to raw texts
+    // Build user message: combine both structured data and raw texts when available
     let userContent: string;
+    const parts: string[] = [];
     if (extractedData && extractedData.length > 0) {
-      userContent = `Datos extraídos de los documentos contables:\n${JSON.stringify(extractedData, null, 2)}\n\nGenerá el JSON de la Situación Patrimonial.`;
-    } else {
+      parts.push(`Datos estructurados extraídos:\n${JSON.stringify(extractedData, null, 2)}`);
+    }
+    if (textos_extraidos && Object.keys(textos_extraidos).length > 0) {
       const textos = Object.entries(textos_extraidos as Record<string, string>)
         .map(([name, text]) => `=== ${name} ===\n${text}`)
         .join("\n\n");
-      userContent = `Contenido de los documentos contables:\n\n${textos}\n\nGenerá el JSON de la Situación Patrimonial.`;
+      parts.push(`Texto completo de los documentos:\n\n${textos}`);
     }
+    userContent = parts.join("\n\n---\n\n") + `\n\nUsá TODA la información disponible arriba. Generá el JSON de la Situación Patrimonial.`;
     console.log(`[situacion-patrimonial] userContent length: ${userContent.length} chars (mode: ${extractedData?.length > 0 ? "structured" : "raw_texts"})`);
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
