@@ -1,13 +1,34 @@
 "use client";
 
 import { useState } from "react";
-import { FlaskConical, Eye, Download, FileSpreadsheet, FileText, Trash2, MessageSquare } from "lucide-react";
+import { FlaskConical, Eye, Download, FileSpreadsheet, FileText, Trash2, MessageSquare, TrendingUp, DollarSign, Wheat } from "lucide-react";
 import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import ReportPreviewModal from "@/components/ReportPreviewModal";
 import { useAppContext } from "@/context/AppContext";
 import { GeneratedReport } from "@/types/report";
 import { generateReportPDF } from "@/lib/pdf/report-pdf";
+
+const EXAMPLE_SCENARIOS = [
+  {
+    title: "Suba del dólar a $1.500",
+    description: "¿Cómo impactaría una devaluación del 20% en el margen bruto por cultivo y en los ratios de endeudamiento?",
+    chatMessage: "¿Qué pasa con mi margen bruto y ratios si el dólar sube a $1.500? Simulá el escenario con los datos de mi empresa.",
+    icon: DollarSign,
+  },
+  {
+    title: "Caída del rinde de soja",
+    description: "Simulá un escenario donde el rinde de soja baja un 25% por sequía y analizá el impacto en el resultado.",
+    chatMessage: "Simulá un escenario donde el rinde de soja cae un 25% por sequía. ¿Cómo queda mi resultado y punto de equilibrio?",
+    icon: Wheat,
+  },
+  {
+    title: "Suba de costos de insumos",
+    description: "¿Qué pasa si los costos de fertilizantes y agroquímicos suben un 30%? Analizá el break-even resultante.",
+    chatMessage: "¿Qué pasa con mi break-even si los costos de fertilizantes y agroquímicos suben un 30%? Mostrá la sensibilidad.",
+    icon: TrendingUp,
+  },
+];
 
 const REPORT_LABELS: Record<string, string> = {
   "situacion-patrimonial":  "Situación Patrimonial",
@@ -103,28 +124,61 @@ export default function EscenariosClient() {
 
             {sorted.length === 0 ? (
               /* Empty state */
-              <div
-                className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed py-24"
-                style={{ borderColor: "#D6D1C8", backgroundColor: "#FAFAF8" }}
-              >
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ backgroundColor: "#FFF3E0" }}>
-                  <FlaskConical size={26} style={{ color: "#B8922A" }} />
+              <div className="space-y-6">
+                <div
+                  className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed py-16"
+                  style={{ borderColor: "#D6D1C8", backgroundColor: "#FAFAF8" }}
+                >
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ backgroundColor: "#FFF3E0" }}>
+                    <FlaskConical size={26} style={{ color: "#B8922A" }} />
+                  </div>
+                  <div className="text-center">
+                    <p className="font-semibold text-sm mb-1" style={{ color: "#1A1A1A" }}>No hay escenarios guardados</p>
+                    <p className="text-xs max-w-xs" style={{ color: "#9B9488" }}>
+                      Desde el chat, pedile al asistente que modifique un reporte y guardalo acá como escenario what-if.
+                    </p>
+                  </div>
+                  <Link href="/chat">
+                    <button
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white cursor-pointer"
+                      style={{ backgroundColor: "#B8922A" }}
+                    >
+                      <MessageSquare size={14} />
+                      Abrir el chat
+                    </button>
+                  </Link>
                 </div>
-                <div className="text-center">
-                  <p className="font-semibold text-sm mb-1" style={{ color: "#1A1A1A" }}>No hay escenarios guardados</p>
-                  <p className="text-xs max-w-xs" style={{ color: "#9B9488" }}>
-                    Desde el chat, pedile al asistente que modifique un reporte y guardalo acá como escenario what-if.
-                  </p>
+
+                {/* Example scenario cards */}
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "#9B9488" }}>
+                    Ejemplos de escenarios que podés crear
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {EXAMPLE_SCENARIOS.map((ex, i) => (
+                      <Link key={i} href={`/chat?message=${encodeURIComponent(ex.chatMessage)}`}>
+                        <div
+                          className="rounded-xl border p-5 cursor-pointer transition-all hover:shadow-md hover:border-[#D4AD3C]"
+                          style={{ borderColor: "#E8E5DE", backgroundColor: "#FFFFFF" }}
+                        >
+                          <div className="flex items-center gap-3 mb-3">
+                            <div
+                              className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                              style={{ backgroundColor: "#FFF8E7" }}
+                            >
+                              <ex.icon size={18} style={{ color: "#B8922A" }} />
+                            </div>
+                            <h4 className="font-semibold text-sm" style={{ color: "#1A1A1A" }}>{ex.title}</h4>
+                          </div>
+                          <p className="text-xs leading-relaxed mb-3" style={{ color: "#9B9488" }}>{ex.description}</p>
+                          <p className="text-[11px] font-medium" style={{ color: "#B8922A" }}>
+                            Probar en el chat →
+                          </p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
-                <Link href="/chat">
-                  <button
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white cursor-pointer"
-                    style={{ backgroundColor: "#B8922A" }}
-                  >
-                    <MessageSquare size={14} />
-                    Abrir el chat
-                  </button>
-                </Link>
               </div>
             ) : (
               /* Escenarios list */

@@ -70,6 +70,36 @@ const REPORT_HINTS: Record<string, string> = {
   seguimiento_campana:    "Necesita plan de siembra con datos de avance",
 };
 
+// ─── Partial report warnings (available but could be more complete) ──────────
+// key = report id, value = { missingTipos: tipos that if absent trigger warning, message: warning text }
+const PARTIAL_WARNINGS: Record<string, { missingTipos: string[]; message: string }[]> = {
+  margen_bruto: [
+    { missingTipos: ["plan_siembra"], message: "Sin plan de siembra, el margen se estima solo con datos del balance" },
+  ],
+  break_even: [
+    { missingTipos: ["plan_siembra"], message: "Sin plan de siembra, los costos directos se estiman desde el balance" },
+  ],
+  calificacion_bancaria: [
+    { missingTipos: ["planilla_stock"], message: "Sin datos de hacienda/maquinaria, el formulario queda incompleto" },
+  ],
+  resultado_unidad_negocio: [
+    { missingTipos: ["plan_siembra"], message: "Sin apertura por actividad, se estima desde el estado de resultados" },
+  ],
+  dashboard_mensual: [
+    { missingTipos: ["extracto_bancario"], message: "Sin extractos bancarios, la mensualización es estimada" },
+  ],
+};
+
+function getPartialWarning(reportId: string, detectedTipos: string[]): string | null {
+  const warnings = PARTIAL_WARNINGS[reportId];
+  if (!warnings) return null;
+  for (const w of warnings) {
+    const allMissing = w.missingTipos.every(t => !detectedTipos.includes(t));
+    if (allMissing) return w.message;
+  }
+  return null;
+}
+
 // ─── Required docs per unavailable report ────────────────────────────────────
 const REQUIRED_DOCS: Record<string, { label: string; tipos: string[] }[]> = {
   proyeccion: [
@@ -214,6 +244,7 @@ function AvailableReportCard({
   isSelected,
   canGenerate,
   latestReport,
+  detectedTipos,
   onToggle,
   onGenerate,
   onUpload,
@@ -225,6 +256,7 @@ function AvailableReportCard({
   isSelected: boolean;
   canGenerate: boolean;
   latestReport: GeneratedReport | null;
+  detectedTipos: string[];
   onToggle: () => void;
   onGenerate: () => void;
   onUpload: () => void;
@@ -377,6 +409,22 @@ function AvailableReportCard({
           {REPORT_HINTS[reporte.id]}
         </p>
       )}
+      {(() => {
+        const warning = getPartialWarning(reporte.id, detectedTipos);
+        if (!warning) return null;
+        return (
+          <div
+            className="rounded-lg px-3 py-2 flex items-start gap-2"
+            style={{ backgroundColor: "#FFF8E7", border: "1px solid #F0E6C8", marginTop: 2 }}
+          >
+            <span style={{ fontSize: 11, flexShrink: 0, marginTop: 1 }}>⚠️</span>
+            <p style={{ fontSize: 10, color: "#8B7A3E", lineHeight: 1.4, margin: 0 }}>
+              {warning}
+              {hasGenerated && <span className="font-semibold"> · Reporte parcial</span>}
+            </p>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -602,6 +650,7 @@ export default function DocumentAnalysis({
                 isSelected={selected.has(reporte.id)}
                 canGenerate={canGenerate}
                 latestReport={latestByAnalysisId[reporte.id] ?? null}
+                detectedTipos={detectedTipos}
                 onToggle={() => toggleSelect(reporte.id)}
                 onGenerate={() => onGenerate(reporte.id)}
                 onUpload={onUpload}

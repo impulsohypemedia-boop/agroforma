@@ -683,37 +683,7 @@ export default function DashboardClient() {
                 </div>
               </section>
             ) : analyzing ? (
-              <section>
-                <div
-                  className="flex flex-col items-center justify-center gap-3 rounded-xl border py-14"
-                  style={{ borderColor: "#E8E5DE", backgroundColor: "#FFFFFF" }}
-                >
-                  <Loader2 size={28} className="animate-spin" style={{ color: "#3D7A1C" }} />
-                  {extractProgress ? (
-                    <>
-                      <p className="font-medium text-sm" style={{ color: "#1A1A1A" }}>
-                        Procesando documento {extractProgress.current} de {extractProgress.total}…
-                      </p>
-                      <div className="w-48 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "#E8E5DE" }}>
-                        <div
-                          className="h-full rounded-full transition-all duration-300"
-                          style={{ backgroundColor: "#3D7A1C", width: `${(extractProgress.current / extractProgress.total) * 100}%` }}
-                        />
-                      </div>
-                      <p className="text-xs" style={{ color: "#9B9488" }}>
-                        Extrayendo datos de cada balance por separado
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="font-medium text-sm" style={{ color: "#1A1A1A" }}>Analizando documentación…</p>
-                      <p className="text-xs" style={{ color: "#9B9488" }}>
-                        Claude está detectando qué reportes son posibles
-                      </p>
-                    </>
-                  )}
-                </div>
-              </section>
+              <AnalyzingExperience extractProgress={extractProgress} />
             ) : enrichedAnalysis ? (
               <DocumentAnalysis
                 analysis={enrichedAnalysis}
@@ -930,5 +900,110 @@ export default function DashboardClient() {
         </div>
       )}
     </>
+  );
+}
+
+// ─── Rich analyzing experience ──────────────────────────────────────────────
+const ANALYZING_MESSAGES = [
+  "Leyendo tus documentos…",
+  "Identificando tipo de documentación…",
+  "Extrayendo datos numéricos…",
+  "Analizando estructura contable…",
+  "Procesando estados financieros…",
+  "Detectando ejercicios y períodos…",
+  "Mapeando activos y pasivos…",
+  "Calculando indicadores clave…",
+  "Preparando los reportes disponibles…",
+];
+
+const ANALYZING_TIPS = [
+  "Podés subir balances de varios ejercicios para ver evolución histórica",
+  "Los archivos Excel y CSV se procesan más rápido que los PDFs escaneados",
+  "Cuanta más documentación subas, más reportes se habilitan automáticamente",
+  "El balance es el documento más versátil: habilita 8+ reportes",
+  "Subí presupuesto de campaña para comparar real vs presupuestado",
+  "Los datos extraídos se guardan para generar reportes al instante después",
+];
+
+function AnalyzingExperience({ extractProgress }: { extractProgress: { current: number; total: number } | null }) {
+  const [msgIndex, setMsgIndex] = useState(0);
+  const [tipIndex, setTipIndex] = useState(0);
+  const [barWidth, setBarWidth] = useState(5);
+
+  useEffect(() => {
+    const msgTimer = setInterval(() => {
+      setMsgIndex((p) => (p + 1) % ANALYZING_MESSAGES.length);
+    }, 4000);
+    const tipTimer = setInterval(() => {
+      setTipIndex((p) => (p + 1) % ANALYZING_TIPS.length);
+    }, 6000);
+    return () => { clearInterval(msgTimer); clearInterval(tipTimer); };
+  }, []);
+
+  // Animated progress bar (indeterminate when no extractProgress)
+  useEffect(() => {
+    if (extractProgress) {
+      setBarWidth(Math.round((extractProgress.current / extractProgress.total) * 100));
+    } else {
+      // Indeterminate animation: slowly grow to 85%
+      const interval = setInterval(() => {
+        setBarWidth((prev) => (prev >= 85 ? 85 : prev + 0.5));
+      }, 300);
+      return () => clearInterval(interval);
+    }
+  }, [extractProgress]);
+
+  return (
+    <section>
+      <div
+        className="rounded-xl border py-10 px-6"
+        style={{ borderColor: "#E8E5DE", backgroundColor: "#FFFFFF" }}
+      >
+        <div className="flex flex-col items-center gap-4 max-w-sm mx-auto">
+          {/* Animated icon */}
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center"
+            style={{ backgroundColor: "#EBF3E8" }}
+          >
+            <Loader2 size={26} className="animate-spin" style={{ color: "#3D7A1C" }} />
+          </div>
+
+          {/* Rotating message */}
+          <div className="text-center min-h-[44px] flex flex-col items-center justify-center">
+            <p className="font-semibold text-sm transition-opacity duration-300" style={{ color: "#1A1A1A" }}>
+              {extractProgress
+                ? `Procesando documento ${extractProgress.current} de ${extractProgress.total}…`
+                : ANALYZING_MESSAGES[msgIndex]}
+            </p>
+          </div>
+
+          {/* Progress bar */}
+          <div className="w-full max-w-xs">
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "#E8E5DE" }}>
+              <div
+                className="h-full rounded-full transition-all duration-500 ease-out"
+                style={{ backgroundColor: "#3D7A1C", width: `${barWidth}%` }}
+              />
+            </div>
+            {extractProgress && (
+              <p className="text-[11px] text-center mt-1.5" style={{ color: "#9B9488" }}>
+                Extrayendo datos de cada documento por separado
+              </p>
+            )}
+          </div>
+
+          {/* Rotating tip */}
+          <div
+            className="mt-2 rounded-lg px-4 py-2.5 text-center transition-opacity duration-500"
+            style={{ backgroundColor: "#FFF8E7", border: "1px solid #F0E6C8" }}
+          >
+            <p className="text-xs" style={{ color: "#8B7A3E" }}>
+              <span className="font-semibold">Tip: </span>
+              {ANALYZING_TIPS[tipIndex]}
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
