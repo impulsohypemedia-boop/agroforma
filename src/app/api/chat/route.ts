@@ -150,9 +150,6 @@ export async function POST(request: NextRequest) {
     const empresaContext: Record<string, any> | null = body.empresa_context ?? null;
     const presentacionesCtx: string | null = body.presentaciones_context ?? null;
 
-    console.log("[chat] messages:", conversationHistory.length, "| empresa:", empresaContext?.empresa?.nombre ?? "sin contexto");
-    console.log("[chat] último mensaje:", conversationHistory.at(-1)?.content?.slice(0, 100));
-
     let systemPrompt = buildSystemPrompt(empresaContext);
     if (presentacionesCtx) {
       systemPrompt += `\n\nCONTEXTO DE PRESENTACIONES Y DOCUMENTOS ADICIONALES:\n${presentacionesCtx}`;
@@ -167,13 +164,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (apiMessages.length === 0 || apiMessages[apiMessages.length - 1].role !== "user") {
-      console.log("[chat] ERROR: mensaje inválido, últimoRol:", apiMessages.at(-1)?.role);
       return new Response("Mensaje inválido", { status: 400 });
     }
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    console.log("[chat] llamando a Claude, mensajes API:", apiMessages.length, "| system length:", systemPrompt.length);
 
     const stream = client.messages.stream({
       model: "claude-sonnet-4-6",
@@ -194,7 +188,6 @@ export async function POST(request: NextRequest) {
               controller.enqueue(encoder.encode(event.delta.text));
             }
           }
-          console.log("[chat] stream completado");
         } finally {
           controller.close();
         }

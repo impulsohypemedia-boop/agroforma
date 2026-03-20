@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
-import { extractOutermostJSON } from "@/lib/extractJSON";
+import { NextRequest } from "next/server";
+import { generateReport } from "@/lib/reportes/generate";
 
 export const maxDuration = 300;
+
 const SYSTEM_PROMPT = `Sos un analista financiero experto en empresas agropecuarias argentinas. Te dan múltiples balances de la misma empresa de distintos ejercicios. Tu tarea es analizar la evolución completa y devolver un JSON con:
 
 {
@@ -95,47 +95,10 @@ const SYSTEM_PROMPT = `Sos un analista financiero experto en empresas agropecuar
 Extraé TODOS los números exactos de cada balance. Si un dato no está en algún año, poné null. Respondé SOLO con el JSON.`;
 
 export async function POST(request: NextRequest) {
-  try {
-    const { extractedData, textos_extraidos } = await request.json();
-    console.log(`[evolucion-historica] extractedData: ${extractedData?.length ?? "null"}, textos: ${textos_extraidos ? Object.keys(textos_extraidos).length + " files" : "null"}`);
-
-    if ((!extractedData || extractedData.length === 0) && !textos_extraidos) {
-      return NextResponse.json({ error: "No se recibieron datos" }, { status: 400 });
-    }
-
-    let userContent: string;
-    const parts: string[] = [];
-    if (extractedData && extractedData.length > 0) {
-      parts.push(`Datos estructurados extraídos:\n${JSON.stringify(extractedData, null, 2)}`);
-    }
-    if (textos_extraidos && Object.keys(textos_extraidos).length > 0) {
-      const textos = Object.entries(textos_extraidos as Record<string, string>)
-        .map(([name, text]) => `=== ${name} ===\n${text}`)
-        .join("\n\n");
-      parts.push(`Texto completo de los documentos:\n\n${textos}`);
-    }
-    userContent = parts.join("\n\n---\n\n") + `\n\nUsá TODA la información disponible arriba. Generá el JSON de la Evolución Histórica.`;
-    console.log(`[evolucion-historica] prompt length: ${userContent.length} (mode: ${extractedData?.length > 0 ? "structured" : "raw_texts"})`);
-
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    const message = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 8192,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userContent }],
-    });
-
-    const text = message.content[0].type === "text" ? message.content[0].text : "";
-    const jsonStr = extractOutermostJSON(text);
-    if (!jsonStr) {
-      console.error("Claude response:", text);
-      return NextResponse.json({ error: "Claude no devolvió un JSON válido" }, { status: 500 });
-    }
-    const data = JSON.parse(jsonStr);
-    return NextResponse.json({ data });
-  } catch (err) {
-    console.error("Error en /api/reportes/evolucion-historica:", err);
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Error interno" }, { status: 500 });
-  }
+  return generateReport(request, {
+    name: "evolucion-historica",
+    systemPrompt: SYSTEM_PROMPT,
+    finalInstruction: "Generá el JSON de la Evolución Histórica.",
+    maxTokens: 8192,
+  });
 }

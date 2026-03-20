@@ -30,15 +30,7 @@ const EXAMPLE_SCENARIOS = [
   },
 ];
 
-const REPORT_LABELS: Record<string, string> = {
-  "situacion-patrimonial":  "Situación Patrimonial",
-  "margen-bruto":           "Margen Bruto por Cultivo",
-  "ratios":                 "Ratios e Indicadores",
-  "bridge":                 "Bridge de Resultados",
-  "break-even":             "Punto de Equilibrio",
-  "calificacion-bancaria":  "Calificación Bancaria",
-  "evolucion-historica":    "Evolución Histórica",
-};
+import { REPORT_LABELS } from "@/lib/constants";
 
 async function downloadExcel(escenario: GeneratedReport) {
   const res = await fetch(escenario.downloadPath, {

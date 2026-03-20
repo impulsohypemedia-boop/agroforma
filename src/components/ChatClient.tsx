@@ -35,16 +35,7 @@ type Conversation = {
   updatedAt: string;
 };
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const REPORT_LABELS: Record<string, string> = {
-  "situacion-patrimonial":  "Situación Patrimonial",
-  "margen-bruto":           "Margen Bruto por Cultivo",
-  "ratios":                 "Ratios e Indicadores",
-  "bridge":                 "Bridge de Resultados",
-  "break-even":             "Punto de Equilibrio",
-  "calificacion-bancaria":  "Calificación Bancaria",
-  "evolucion-historica":    "Evolución Histórica",
-};
+import { REPORT_LABELS } from "@/lib/constants";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function makeTitle(msg: string): string {
@@ -600,18 +591,6 @@ export default function ChatClient() {
   const activeConv = conversations.find((c) => c.id === activeId) ?? null;
   const messages   = activeConv?.messages ?? [];
 
-  const setMessages = useCallback((updater: (prev: Message[]) => Message[]) => {
-    setConversations((prev) =>
-      prev.map((c) =>
-        c.id === activeId
-          ? { ...c, messages: updater(c.messages), updatedAt: new Date().toISOString() }
-          : c
-      )
-    );
-  }, [activeId]);
-
-  // Unused but kept for potential future use
-  void setMessages;
 
   // ── Load conversations from localStorage ──────────────────────────────────
   useEffect(() => {

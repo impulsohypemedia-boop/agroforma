@@ -189,8 +189,6 @@ export default function DashboardClient() {
     if (hasStructured) payload.extractedData = extractedDocsData;
     if (hasTexts) payload.textos_extraidos = extractedTexts;
 
-    console.log(`[generateOne] ${analysisId} → structured: ${extractedDocsData.length}, texts: ${Object.keys(extractedTexts).length}, textsSize: ${Object.values(extractedTexts).reduce((a, b) => a + b.length, 0)} chars`);
-
     const res = await fetch(route.apiPath, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

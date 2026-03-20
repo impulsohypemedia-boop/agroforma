@@ -8,20 +8,7 @@ import { useAppContext } from "@/context/AppContext";
 import { GeneratedReport } from "@/types/report";
 import { generateReportPDF } from "@/lib/pdf/report-pdf";
 
-const REPORT_LABELS: Record<string, string> = {
-  "situacion-patrimonial": "Situación Patrimonial",
-  "margen-bruto":          "Margen Bruto por Cultivo",
-  "ratios":                "Ratios e Indicadores",
-  "bridge":                "Bridge de Resultados",
-  "break-even":            "Punto de Equilibrio",
-  "calificacion-bancaria": "Calificación Bancaria",
-  "evolucion-historica":   "Evolución Histórica",
-  "ebitda":                "EBITDA Agro",
-  "real-vs-presupuesto":   "Real vs Presupuestado",
-  "resultado-unidad-negocio": "Resultado por Unidad de Negocio",
-  "dashboard-mensual":     "Dashboard Mensual",
-  "seguimiento-campana":   "Seguimiento de Campaña",
-};
+import { REPORT_LABELS } from "@/lib/constants";
 
 async function triggerExcelDownload(report: GeneratedReport) {
   const res = await fetch(report.downloadPath, {

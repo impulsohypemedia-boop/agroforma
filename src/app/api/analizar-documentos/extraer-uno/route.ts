@@ -197,8 +197,6 @@ export async function POST(request: NextRequest) {
     const textoCompleto = data.texto_completo || rawText;
     delete data.texto_completo;
 
-    console.log(`[extraer-uno] OK "${name}" → data keys: ${Object.keys(data.datos || {}).filter(k => data.datos[k] !== null).join(", ")}`);
-    console.log(`[extraer-uno] OK "${name}" → texto length: ${textoCompleto.length}`);
     return NextResponse.json({ data, texto: textoCompleto });
   } catch (err) {
     console.error("Error en /api/analizar-documentos/extraer-uno:", err);
