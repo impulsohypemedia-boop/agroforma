@@ -54,6 +54,92 @@ const REPORT_DESCRIPTIONS: Record<string, string> = {
   seguimiento_campana:    "Avance de siembra y cosecha vs plan, por lote y cultivo",
 };
 
+// ─── Frontend report requirement rules (overrides AI analysis) ──────────────
+// These are enforced client-side regardless of what the AI says
+type ReportRule = {
+  requiere: string[];   // document tipos needed (all must be present unless noted)
+  minBalances?: number; // minimum number of distinct balance documents
+  parcial?: boolean;    // can generate partial (e.g. calificacion bancaria)
+  motivo: string;       // message shown when requirements not met
+};
+
+const REPORT_RULES: Record<string, ReportRule> = {
+  situacion_patrimonial: {
+    requiere: ["balance"],
+    minBalances: 1,
+    motivo: "Necesitás subir al menos 1 balance",
+  },
+  ratios: {
+    requiere: ["balance"],
+    minBalances: 1,
+    motivo: "Necesitás subir al menos 1 balance",
+  },
+  ebitda: {
+    requiere: ["balance"],
+    minBalances: 1,
+    motivo: "Necesitás subir al menos 1 balance con estado de resultados",
+  },
+  calificacion_bancaria: {
+    requiere: ["balance"],
+    minBalances: 1,
+    parcial: true,
+    motivo: "Necesitás subir al menos 1 balance",
+  },
+  bridge: {
+    requiere: ["balance"],
+    minBalances: 2,
+    motivo: "Necesitás subir al menos 2 balances de ejercicios diferentes para comparar",
+  },
+  evolucion_historica: {
+    requiere: ["balance"],
+    minBalances: 2,
+    motivo: "Necesitás subir al menos 2 balances de ejercicios diferentes",
+  },
+  margen_bruto: {
+    requiere: ["balance", "plan_siembra"],
+    motivo: "Necesitás subir el plan de siembra con hectáreas, rindes y costos por cultivo",
+  },
+  break_even: {
+    requiere: ["balance", "plan_siembra"],
+    motivo: "Necesitás subir el plan de siembra con costos directos por hectárea para calcular el punto de equilibrio",
+  },
+  real_vs_presupuesto: {
+    requiere: ["balance", "presupuesto"],
+    motivo: "Necesitás subir el presupuesto de campaña para comparar real vs presupuestado",
+  },
+  resultado_unidad_negocio: {
+    requiere: ["balance"],
+    motivo: "El balance no tiene apertura por unidad de negocio. Subí un balance con detalle por actividad o un informe de gestión con resultados separados",
+  },
+  dashboard_mensual: {
+    requiere: ["balance", "extracto_bancario"],
+    motivo: "Necesitás subir extractos bancarios para el tablero mensual",
+  },
+  seguimiento_campana: {
+    requiere: ["plan_siembra"],
+    motivo: "Necesitás subir el plan de siembra y datos de avance de cosecha",
+  },
+};
+
+/**
+ * Check if a report meets its frontend requirements.
+ * Returns true if the report CAN be generated.
+ */
+function meetsRequirements(reportId: string, detectedTipos: string[], balanceCount: number): boolean {
+  const rule = REPORT_RULES[reportId];
+  if (!rule) return true; // no rule = allow
+
+  // Check minBalances
+  if (rule.minBalances && balanceCount < rule.minBalances) return false;
+
+  // Check all required tipos are present
+  for (const tipo of rule.requiere) {
+    if (!detectedTipos.includes(tipo)) return false;
+  }
+
+  return true;
+}
+
 // ─── Hints for available reports ──────────────────────────────────────────────
 const REPORT_HINTS: Record<string, string> = {
   situacion_patrimonial:  "Subí más balances para ver evolución histórica",
@@ -490,15 +576,22 @@ function UnavailableReportCard({
           </ul>
         )}
 
+        {/* Show frontend rule motivo if available */}
+        {REPORT_RULES[reporte.id] && (
+          <p className="text-[10px] leading-relaxed" style={{ color: "#C0392B" }}>
+            {REPORT_RULES[reporte.id].motivo}
+          </p>
+        )}
+
         <button
           onClick={() => setModalOpen(true)}
-          className="mt-1 w-full py-2 rounded-lg text-xs font-semibold border transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-          style={{ borderColor: "#D6D1C8", color: "#9B9488", backgroundColor: "#F4F2EE" }}
+          className="mt-1 w-full py-2 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+          style={{ border: "1.5px dashed #D6D1C8", color: "#9B9488", backgroundColor: "#FAFAF8" }}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#E8E5DE";
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F0EDE6";
           }}
           onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F4F2EE";
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#FAFAF8";
           }}
         >
           <Icon size={12} />
@@ -544,11 +637,17 @@ export default function DocumentAnalysis({
 }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const available   = analysis.reportes_posibles.filter((r) => r.disponible);
-  const unavailable = analysis.reportes_posibles.filter((r) => !r.disponible);
-
   const detectedTipos = analysis.documentos_detectados.map((d) => d.tipo);
+  const balanceCount  = detectedTipos.filter((t) => t === "balance").length;
   const docSummary    = analysis.documentos_detectados.map((d) => d.descripcion || d.tipo).join(" · ");
+
+  // Frontend enforcement: override AI availability with strict rules
+  const available   = analysis.reportes_posibles.filter(
+    (r) => r.disponible && meetsRequirements(r.id, detectedTipos, balanceCount)
+  );
+  const unavailable = analysis.reportes_posibles.filter(
+    (r) => !r.disponible || !meetsRequirements(r.id, detectedTipos, balanceCount)
+  );
 
   const isAnyBusy = !!generating || !!bulkProgress;
 
