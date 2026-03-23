@@ -127,17 +127,28 @@ const SYSTEM_PROMPT = `Sos un analista especializado en documentación de empres
   ]
 }
 
-Reglas para disponibilidad:
-- situacion_patrimonial, ratios, bridge: disponible si hay balance o estado patrimonial.
-- margen_bruto: disponible si hay ventas por cultivo o estado de resultados con detalle de ingresos.
-- break_even: SIEMPRE disponible si hay al menos un balance.
-- calificacion_bancaria: SIEMPRE disponible si hay al menos un balance.
-- ebitda: SIEMPRE disponible si hay al menos un balance con estado de resultados.
-- resultado_unidad_negocio: disponible si hay balance con apertura por actividad o detalle de ventas.
-- dashboard_mensual: SIEMPRE disponible si hay al menos un balance.
-- evolucion_historica: disponible si hay 2 o más balances de distintos ejercicios de la misma empresa (modo = "historico"). Si solo hay 1 balance, no está disponible (modo = "simple").
-- real_vs_presupuesto: solo disponible si hay balance + presupuesto de campaña.
-- seguimiento_campana: solo disponible si hay plan de siembra con datos de avance.
+IMPORTANTE: Para la clasificación de tipo de documento, identificá correctamente:
+- "balance": cualquier balance general, estado de situación patrimonial, estado de resultados, estados contables
+- "plan_siembra": plan de siembra, presupuesto de campaña con hectáreas y cultivos, planificación productiva
+- "presupuesto": presupuesto de campaña, presupuesto anual, presupuesto proyectado (sin hectáreas por cultivo)
+- "extracto_bancario": extracto bancario, resumen de cuenta, movimientos bancarios
+- "liquidacion_granos": liquidación primaria/secundaria de granos, ticket de venta
+- "planilla_stock": planilla de hacienda, inventario ganadero, stock de maquinaria
+- "otro": todo lo demás
+
+Reglas ESTRICTAS para disponibilidad (solo marcar disponible=true cuando se cumple la condición):
+- situacion_patrimonial: disponible si hay al menos 1 balance. ✓
+- ratios: disponible si hay al menos 1 balance. ✓
+- ebitda: disponible si hay al menos 1 balance con estado de resultados. ✓
+- calificacion_bancaria: disponible si hay al menos 1 balance (se genera parcial). ✓
+- bridge: disponible SOLO si hay 2+ balances de ejercicios DISTINTOS. Con 1 solo balance: NO disponible, motivo="Necesitás subir al menos 2 balances de ejercicios diferentes para comparar"
+- evolucion_historica: disponible SOLO si hay 2+ balances de ejercicios distintos (modo="historico"). Con 1 balance: NO disponible, motivo="Necesitás subir al menos 2 balances de ejercicios diferentes"
+- margen_bruto: disponible SOLO si hay balance + plan de siembra con hectáreas y costos por cultivo. Sin plan de siembra: NO disponible, motivo="Necesitás subir el plan de siembra con hectáreas, rindes y costos por cultivo"
+- break_even: disponible SOLO si hay balance + plan de siembra con costos directos. Sin plan de siembra: NO disponible, motivo="Necesitás subir el plan de siembra con costos directos por hectárea"
+- real_vs_presupuesto: disponible SOLO si hay balance + presupuesto de campaña. motivo="Necesitás subir el presupuesto de campaña"
+- resultado_unidad_negocio: disponible SOLO si hay balance con apertura por actividad (agricultura/ganadería/servicios separados). Si el balance NO tiene apertura: NO disponible, motivo="El balance no tiene apertura por unidad de negocio. Subí un balance con detalle por actividad"
+- dashboard_mensual: disponible SOLO si hay balance + extractos bancarios. Sin extractos: NO disponible, motivo="Necesitás subir extractos bancarios para el tablero mensual"
+- seguimiento_campana: disponible SOLO si hay plan de siembra + datos de avance de cosecha. Sin ambos: NO disponible
 - proyeccion: solo disponible si hay plan de siembra con hectáreas, rindes y precios estimados.
 - ranking_campos: solo disponible si hay detalle de producción por campo.
 

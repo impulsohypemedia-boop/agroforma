@@ -148,15 +148,13 @@ export default function Sidebar() {
             );
           })}
 
-          {/* Portfolio — only when 2+ empresas */}
-          {empresas.length >= 2 && (
-            <Link href="/portfolio">
-              <div className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${pathname === "/portfolio" ? "bg-white/15 text-white" : "text-white/55 hover:bg-white/8 hover:text-white/80"}`}>
-                <Layers size={18} className={pathname === "/portfolio" ? "text-white" : "text-white/55"} />
-                Portfolio
-              </div>
-            </Link>
-          )}
+          {/* Portfolio — always visible */}
+          <Link href="/portfolio">
+            <div className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${pathname === "/portfolio" ? "bg-white/15 text-white" : "text-white/55 hover:bg-white/8 hover:text-white/80"}`}>
+              <Layers size={18} className={pathname === "/portfolio" ? "text-white" : "text-white/55"} />
+              Portfolio
+            </div>
+          </Link>
 
           {/* Asistente */}
           {navItemsBottom.map((item) => {

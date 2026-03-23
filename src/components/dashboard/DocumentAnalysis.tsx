@@ -57,51 +57,62 @@ const REPORT_DESCRIPTIONS: Record<string, string> = {
 // ─── Hints for available reports ──────────────────────────────────────────────
 const REPORT_HINTS: Record<string, string> = {
   situacion_patrimonial:  "Subí más balances para ver evolución histórica",
-  margen_bruto:           "Sumá plan de siembra para ver margen por campo",
   ratios:                 "Con más ejercicios se calculan tendencias",
-  bridge:                 "Disponible entre cualquier par de ejercicios",
-  break_even:             "Necesita plan de siembra con costos por cultivo",
-  calificacion_bancaria:  "Sumá datos de campos y hacienda para completar",
-  evolucion_historica:    "Disponible con 2 o más balances de la misma empresa",
   ebitda:                 "Se calcula automáticamente desde el balance",
-  real_vs_presupuesto:    "Necesita balance + presupuesto de campaña",
-  resultado_unidad_negocio: "Mejor con balance que tenga apertura por actividad",
-  dashboard_mensual:      "Se estima con estacionalidad típica del agro",
-  seguimiento_campana:    "Necesita plan de siembra con datos de avance",
+  calificacion_bancaria:  "Sumá datos de campos, hacienda y maquinaria para completar",
 };
 
-// ─── Partial report warnings (available but could be more complete) ──────────
-// key = report id, value = { missingTipos: tipos that if absent trigger warning, message: warning text }
-const PARTIAL_WARNINGS: Record<string, { missingTipos: string[]; message: string }[]> = {
-  margen_bruto: [
-    { missingTipos: ["plan_siembra"], message: "Sin plan de siembra, el margen se estima solo con datos del balance" },
-  ],
-  break_even: [
-    { missingTipos: ["plan_siembra"], message: "Sin plan de siembra, los costos directos se estiman desde el balance" },
-  ],
-  calificacion_bancaria: [
-    { missingTipos: ["planilla_stock"], message: "Sin datos de hacienda/maquinaria, el formulario queda incompleto" },
-  ],
-  resultado_unidad_negocio: [
-    { missingTipos: ["plan_siembra"], message: "Sin apertura por actividad, se estima desde el estado de resultados" },
-  ],
-  dashboard_mensual: [
-    { missingTipos: ["extracto_bancario"], message: "Sin extractos bancarios, la mensualización es estimada" },
-  ],
-};
+// ─── Calificación bancaria completeness ─────────────────────────────────────
+const CALIFICACION_CHECKLIST: { label: string; tipos: string[] }[] = [
+  { label: "Balance cargado — datos contables disponibles",           tipos: ["balance"] },
+  { label: "Datos de campos — subí detalle de campos propios y arrendados", tipos: ["plan_siembra"] },
+  { label: "Plan de siembra — subí hectáreas por cultivo",            tipos: ["plan_siembra"] },
+  { label: "Stock de hacienda — subí planilla de hacienda",           tipos: ["planilla_stock"] },
+  { label: "Inventario de maquinaria — subí listado de maquinaria",   tipos: ["planilla_stock"] },
+];
 
-function getPartialWarning(reportId: string, detectedTipos: string[]): string | null {
-  const warnings = PARTIAL_WARNINGS[reportId];
-  if (!warnings) return null;
-  for (const w of warnings) {
-    const allMissing = w.missingTipos.every(t => !detectedTipos.includes(t));
-    if (allMissing) return w.message;
-  }
-  return null;
+function getCalificacionCompleteness(detectedTipos: string[]): { pct: number; items: { label: string; have: boolean }[] } {
+  const items = CALIFICACION_CHECKLIST.map(c => ({
+    label: c.label,
+    have: c.tipos.some(t => detectedTipos.includes(t)),
+  }));
+  const pct = Math.round((items.filter(i => i.have).length / items.length) * 100);
+  return { pct, items };
 }
 
 // ─── Required docs per unavailable report ────────────────────────────────────
 const REQUIRED_DOCS: Record<string, { label: string; tipos: string[] }[]> = {
+  margen_bruto: [
+    { label: "Balance o estado de resultados", tipos: ["balance"] },
+    { label: "Plan de siembra con hectáreas, rindes y costos por cultivo", tipos: ["plan_siembra"] },
+  ],
+  bridge: [
+    { label: "Balance ejercicio 1", tipos: ["balance"] },
+    { label: "Balance ejercicio 2 (distinto período)", tipos: ["balance"] },
+  ],
+  break_even: [
+    { label: "Balance o estado de resultados", tipos: ["balance"] },
+    { label: "Plan de siembra con costos directos por hectárea", tipos: ["plan_siembra"] },
+  ],
+  evolucion_historica: [
+    { label: "Balance ejercicio 1", tipos: ["balance"] },
+    { label: "Balance ejercicio 2 (distinto período)", tipos: ["balance"] },
+  ],
+  real_vs_presupuesto: [
+    { label: "Balance o estado de resultados (datos reales)", tipos: ["balance"] },
+    { label: "Presupuesto de campaña (datos proyectados)", tipos: ["presupuesto", "otro"] },
+  ],
+  resultado_unidad_negocio: [
+    { label: "Balance con apertura por actividad (agricultura/ganadería/servicios)", tipos: ["balance"] },
+  ],
+  dashboard_mensual: [
+    { label: "Balance o estado de resultados", tipos: ["balance"] },
+    { label: "Extractos bancarios mensuales", tipos: ["extracto_bancario"] },
+  ],
+  seguimiento_campana: [
+    { label: "Plan de siembra con hectáreas y cultivos", tipos: ["plan_siembra"] },
+    { label: "Datos de avance de cosecha", tipos: ["plan_siembra", "otro"] },
+  ],
   proyeccion: [
     { label: "Plan de siembra con hectáreas, cultivos y rindes estimados", tipos: ["plan_siembra"] },
     { label: "Balance o estado de resultados", tipos: ["balance"] },
@@ -109,13 +120,6 @@ const REQUIRED_DOCS: Record<string, { label: string; tipos: string[] }[]> = {
   ranking_campos: [
     { label: "Planilla de producción detallada por campo o potrero", tipos: ["planilla_stock", "plan_siembra"] },
     { label: "Balance o estado de resultados", tipos: ["balance"] },
-  ],
-  real_vs_presupuesto: [
-    { label: "Balance o estado de resultados (datos reales)", tipos: ["balance"] },
-    { label: "Presupuesto de campaña (datos proyectados)", tipos: ["otro", "plan_siembra"] },
-  ],
-  seguimiento_campana: [
-    { label: "Plan de siembra con hectáreas y cultivos", tipos: ["plan_siembra"] },
   ],
 };
 
@@ -409,19 +413,24 @@ function AvailableReportCard({
           {REPORT_HINTS[reporte.id]}
         </p>
       )}
-      {(() => {
-        const warning = getPartialWarning(reporte.id, detectedTipos);
-        if (!warning) return null;
+      {reporte.id === "calificacion_bancaria" && (() => {
+        const { pct, items } = getCalificacionCompleteness(detectedTipos);
         return (
           <div
-            className="rounded-lg px-3 py-2 flex items-start gap-2"
+            className="rounded-lg px-3 py-2.5"
             style={{ backgroundColor: "#FFF8E7", border: "1px solid #F0E6C8", marginTop: 2 }}
           >
-            <span style={{ fontSize: 11, flexShrink: 0, marginTop: 1 }}>⚠️</span>
-            <p style={{ fontSize: 10, color: "#8B7A3E", lineHeight: 1.4, margin: 0 }}>
-              {warning}
-              {hasGenerated && <span className="font-semibold"> · Reporte parcial</span>}
+            <p style={{ fontSize: 10, fontWeight: 600, color: "#8B7A3E", marginBottom: 4 }}>
+              Se generará con {pct}% de completitud
             </p>
+            <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 2 }}>
+              {items.map((item, i) => (
+                <li key={i} style={{ fontSize: 9, display: "flex", gap: 4, alignItems: "flex-start", color: item.have ? "#3D7A1C" : "#9B9488" }}>
+                  <span style={{ flexShrink: 0 }}>{item.have ? "✓" : "✗"}</span>
+                  <span>{item.label}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         );
       })()}

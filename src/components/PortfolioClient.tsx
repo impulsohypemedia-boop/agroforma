@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Layers, TrendingUp, BarChart2, Sparkles, Download, RefreshCw, Trophy, Medal, Award } from "lucide-react";
+import { Layers, TrendingUp, BarChart2, Sparkles, Download, RefreshCw, Trophy, Medal, Award, Building2 } from "lucide-react";
+import NuevaEmpresaModal from "@/components/NuevaEmpresaModal";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from "recharts";
 import Sidebar from "@/components/Sidebar";
 import { useAppContext } from "@/context/AppContext";
@@ -502,20 +503,34 @@ export default function PortfolioClient() {
     }
   }, [empresas]);
 
-  // If < 2 empresas, show empty state
+  const [nuevaEmpresaOpen, setNuevaEmpresaOpen] = useState(false);
+
+  // If < 2 empresas, show empty state with create button
   if (empresas.length < 2) {
     return (
       <div className="flex h-screen overflow-hidden" style={{ backgroundColor: "#F9F8F4" }}>
         <Sidebar />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center max-w-sm">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: "#EBF3E8" }}>
-              <Layers size={28} style={{ color: "#3D7A1C" }} />
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="text-center max-w-md">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5" style={{ backgroundColor: "#EBF3E8" }}>
+              <Building2 size={28} style={{ color: "#3D7A1C" }} />
             </div>
-            <h2 className="text-lg font-semibold mb-2" style={{ color: "#1A1A1A" }}>Portfolio de empresas</h2>
-            <p className="text-sm" style={{ color: "#9B9488" }}>Necesitás al menos 2 empresas creadas para usar el Portfolio. Creá otra empresa desde el selector en el sidebar.</p>
+            <h2 className="text-xl font-bold mb-3" style={{ color: "#1A1A1A" }}>Portfolio</h2>
+            <p className="text-sm leading-relaxed mb-6" style={{ color: "#9B9488" }}>
+              Creá otra empresa y subile documentación para comparar el rendimiento entre tus empresas.
+              El portfolio te permite ver benchmarks, rankings y análisis comparativo.
+            </p>
+            <button
+              onClick={() => setNuevaEmpresaOpen(true)}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white cursor-pointer transition-opacity hover:opacity-90"
+              style={{ backgroundColor: "#3D7A1C" }}
+            >
+              <Building2 size={16} />
+              Crear empresa
+            </button>
           </div>
         </div>
+        <NuevaEmpresaModal open={nuevaEmpresaOpen} onClose={() => setNuevaEmpresaOpen(false)} />
       </div>
     );
   }
