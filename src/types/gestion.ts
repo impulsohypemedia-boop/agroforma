@@ -20,6 +20,10 @@ export type Lote = {
   costosDirectos: number;      // USD/ha
   campana: string;             // e.g. "2025/26"
   notas?: string;
+  // Datos reales (post-cosecha)
+  rendimientoReal?: number;    // tn/ha obtenido
+  precioReal?: number;         // USD/tn venta efectiva
+  costosReales?: number;       // USD/ha ejecutado
 };
 
 // ─── Gestión Ganadera ─────────────────────────────────────────────────────────
