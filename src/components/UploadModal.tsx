@@ -1,29 +1,37 @@
 "use client";
 
 import { useRef, useState, useCallback } from "react";
-import { X, Upload, FileText, Trash2, AlertCircle } from "lucide-react";
+import { X, Upload, FileText, Trash2, AlertCircle, Download } from "lucide-react";
 import { DocType, UploadedDoc } from "@/types/document";
 
 const ACCEPTED_TYPES: Record<string, DocType> = {
   "application/pdf": "PDF",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "XLSX",
   "application/vnd.ms-excel": "XLS",
+  "application/vnd.ms-excel.sheet.macroEnabled.12": "XLSX",
   "text/csv": "CSV",
   "application/csv": "CSV",
 };
 
-const ACCEPTED_EXTENSIONS = [".pdf", ".xlsx", ".xls", ".csv"];
+const ACCEPTED_EXTENSIONS = [".pdf", ".xlsx", ".xls", ".xlsm", ".csv"];
 
 function getDocType(file: File): DocType | null {
   const byMime = ACCEPTED_TYPES[file.type];
   if (byMime) return byMime;
   const ext = file.name.split(".").pop()?.toLowerCase();
   if (ext === "pdf") return "PDF";
-  if (ext === "xlsx") return "XLSX";
+  if (ext === "xlsx" || ext === "xlsm") return "XLSX";
   if (ext === "xls") return "XLS";
   if (ext === "csv") return "CSV";
   return null;
 }
+
+const PLANTILLAS_CREA = [
+  { nombre: "Campaña Agrícola", archivo: "/plantillas-crea/plantilla-campana-agricola.xlsx", desc: "RPP, Margen por Actividad, Agricultura" },
+  { nombre: "Patrimonial", archivo: "/plantillas-crea/plantilla-patrimonial.xlsx", desc: "Indicadores patrimoniales en 4 monedas" },
+  { nombre: "Valorización BC", archivo: "/plantillas-crea/plantilla-valorizacion-bc.xlsx", desc: "Bienes de cambio, tenencia, exposición" },
+  { nombre: "Gestión Ganadera", archivo: "/plantillas-crea/plantilla-ganadero.xlsm", desc: "Asistente de producción ganadero CREA" },
+];
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -179,6 +187,33 @@ export default function UploadModal({ onClose, onConfirm }: Props) {
             className="hidden"
             onChange={(e) => e.target.files && addFiles(e.target.files)}
           />
+
+          {/* Plantillas CREA */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#9B9488" }}>
+              Plantillas modelo CREA
+            </p>
+            <p className="text-xs" style={{ color: "#9B9488" }}>
+              Descargalas, completalas con tus datos, y subilas aca
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {PLANTILLAS_CREA.map((p) => (
+                <a
+                  key={p.archivo}
+                  href={p.archivo}
+                  download
+                  className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 border transition-colors hover:bg-green-50"
+                  style={{ borderColor: "#C8E6C0", backgroundColor: "#FAFAF8" }}
+                >
+                  <Download size={14} style={{ color: "#3D7A1C" }} className="shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium truncate" style={{ color: "#1A1A1A" }}>{p.nombre}</p>
+                    <p className="text-[10px] truncate" style={{ color: "#9B9488" }}>{p.desc}</p>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
 
           {/* Error */}
           {error && (

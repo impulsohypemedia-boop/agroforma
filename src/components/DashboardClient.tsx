@@ -77,6 +77,21 @@ const ROUTE_MAP: Record<string, { reportId: string; apiPath: string; downloadPat
     apiPath: "/api/reportes/seguimiento-campana",
     downloadPath: "/api/reportes/seguimiento-campana/download",
   },
+  rpp: {
+    reportId: "rpp",
+    apiPath: "/api/reportes/rpp",
+    downloadPath: "/api/reportes/rpp/download",
+  },
+  margen_contribucion: {
+    reportId: "margen-contribucion",
+    apiPath: "/api/reportes/margen-contribucion",
+    downloadPath: "/api/reportes/margen-contribucion/download",
+  },
+  valorizacion_bc: {
+    reportId: "valorizacion-bc",
+    apiPath: "/api/reportes/valorizacion-bc",
+    downloadPath: "/api/reportes/valorizacion-bc/download",
+  },
 };
 
 async function triggerExcelDownload(report: GeneratedReport) {
@@ -520,7 +535,12 @@ export default function DashboardClient() {
           >
             <div className="flex-1">
               <h1 className="text-xl font-semibold" style={{ color: "#1A1A1A" }}>Dashboard</h1>
-              <p className="text-xs mt-0.5" style={{ color: "#9B9488" }}>Campaña 2025/26</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-xs" style={{ color: "#9B9488" }}>Campana 2025/26</p>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: "#EBF3E8", color: "#3D7A1C" }}>
+                  CREA
+                </span>
+              </div>
             </div>
 
             {/* Empresa detectada */}
@@ -741,27 +761,56 @@ export default function DashboardClient() {
                 </div>
               </section>
             ) : documents.length === 0 ? (
-              <section className="space-y-4">
-                <div className="text-center">
-                  <h2 className="text-2xl font-bold mb-2" style={{ color: "#1A1A1A" }}>
-                    Bienvenido a AgroForma
-                  </h2>
-                  <p className="text-sm font-medium mb-1" style={{ color: "#3D7A1C" }}>
-                    La inteligencia artificial de la empresa agropecuaria argentina
-                  </p>
-                  <p className="text-sm max-w-lg mx-auto" style={{ color: "#9B9488" }}>
-                    Subí la documentación de tu empresa y AgroForma la analiza, estructura y te genera reportes automáticamente.
-                  </p>
-                </div>
-                <div className="flex justify-center">
-                  <button
-                    onClick={() => setModalOpen(true)}
-                    className="flex items-center gap-2 px-7 py-3 rounded-xl text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition-opacity"
-                    style={{ backgroundColor: "#3D7A1C" }}
-                  >
-                    <Upload size={18} />
-                    Subir documentos
-                  </button>
+              <section>
+                <div
+                  className="relative overflow-hidden rounded-2xl border"
+                  style={{ borderColor: "#C8E6C0", background: "linear-gradient(135deg, #1A3311 0%, #2E5E14 50%, #3D7A1C 100%)" }}
+                >
+                  {/* Decorative grid */}
+                  <div className="absolute inset-0 opacity-5" style={{
+                    backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
+                    backgroundSize: "32px 32px",
+                  }} />
+                  <div className="relative px-10 py-12 flex flex-col items-center text-center">
+                    <div
+                      className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5"
+                      style={{ backgroundColor: "rgba(255,255,255,0.12)", backdropFilter: "blur(8px)" }}
+                    >
+                      <Wheat size={28} style={{ color: "#D4AD3C" }} />
+                    </div>
+                    <h2 className="text-2xl font-bold mb-2 text-white">
+                      Bienvenido a AgroForma
+                    </h2>
+                    <p className="text-sm font-semibold mb-1" style={{ color: "#D4AD3C" }}>
+                      Metodologia CREA integrada
+                    </p>
+                    <p className="text-sm max-w-md mx-auto mb-6" style={{ color: "rgba(255,255,255,0.65)" }}>
+                      Subi la documentacion de tu empresa y la IA analiza, calcula indicadores CREA,
+                      y genera 15 reportes profesionales con semaforos y recomendaciones.
+                    </p>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setModalOpen(true)}
+                        className="flex items-center gap-2 px-7 py-3 rounded-xl text-sm font-semibold cursor-pointer hover:opacity-90 transition-opacity"
+                        style={{ backgroundColor: "#D4AD3C", color: "#1A3311" }}
+                      >
+                        <Upload size={16} />
+                        Subir documentos
+                      </button>
+                    </div>
+                    {/* Feature pills */}
+                    <div className="flex flex-wrap justify-center gap-2 mt-6">
+                      {["15 reportes", "Semaforos CREA", "4 monedas", "Cascada RPP", "Chat IA"].map(f => (
+                        <span
+                          key={f}
+                          className="text-[10px] font-semibold px-3 py-1 rounded-full"
+                          style={{ backgroundColor: "rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.60)" }}
+                        >
+                          {f}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </section>
             ) : null}

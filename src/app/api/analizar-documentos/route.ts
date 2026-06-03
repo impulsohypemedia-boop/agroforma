@@ -123,9 +123,38 @@ const SYSTEM_PROMPT = `Sos un analista especializado en documentación de empres
       "descripcion": "Avance de siembra y cosecha vs plan, por lote y cultivo",
       "disponible": false,
       "motivo": "Se necesita plan de siembra con datos de avance"
+    },
+    {
+      "id": "rpp",
+      "nombre": "Resultado por Producción (RPP)",
+      "descripcion": "Cascada completa de resultados según normas CREA en 3 monedas",
+      "disponible": true,
+      "motivo": "Se calcula desde el balance con estado de resultados"
+    },
+    {
+      "id": "margen_contribucion",
+      "nombre": "Margen de Contribución por Actividad",
+      "descripcion": "Desglose del resultado por actividad según metodología CREA",
+      "disponible": true,
+      "motivo": "Se identificarán las actividades desde el balance"
+    },
+    {
+      "id": "valorizacion_bc",
+      "nombre": "Valorización de Bienes de Cambio",
+      "descripcion": "Valorización de stocks de granos e insumos con tenencia y exposición",
+      "disponible": true,
+      "motivo": "Se calcula desde el balance y datos de bienes de cambio"
     }
   ]
 }
+
+DETECCION DE FORMATO CREA:
+Si un archivo tiene hojas o estructura que coincida con las plantillas estandar CREA, detectalo automaticamente:
+- Hojas como "Inicio", "Indicadores", "$", "u$s", "$ Constantes": es un Reporte Patrimonial CREA
+- Hojas como "RPP", "Margen Contribucion", "Agricultura", "Ganaderia": es un Reporte de Campaña CREA
+- Estructura de productos/insumos con stock inicio/cierre, tenencia, exposicion: es una Valorizacion BC CREA
+- "Planilla de datos" con categorias ganaderas, SIPM, Dolar: es un Asistente Ganadero CREA
+Cuando detectes formato CREA, anotalo en la descripcion del documento con "(formato CREA)" y marcá como disponibles los reportes correspondientes.
 
 IMPORTANTE: Para la clasificación de tipo de documento, identificá correctamente:
 - "balance": cualquier balance general, estado de situación patrimonial, estado de resultados, estados contables
@@ -151,6 +180,9 @@ Reglas ESTRICTAS para disponibilidad (solo marcar disponible=true cuando se cump
 - seguimiento_campana: disponible SOLO si hay plan de siembra + datos de avance de cosecha. Sin ambos: NO disponible
 - proyeccion: solo disponible si hay plan de siembra con hectáreas, rindes y precios estimados.
 - ranking_campos: solo disponible si hay detalle de producción por campo.
+- rpp: disponible si hay al menos 1 balance con estado de resultados. ✓
+- margen_contribucion: disponible si hay al menos 1 balance con detalle por actividad o que permita inferir actividades. ✓
+- valorizacion_bc: disponible si hay al menos 1 balance con datos de bienes de cambio (stocks de granos o insumos). ✓
 
 Reglas para modo histórico:
 - Contá cuántos balances de distintos ejercicios hay. Si hay 2 o más balances de la misma empresa: modo = "historico", balances_detectados = N, ejercicios = lista de años detectados, empresa_consistente = true.

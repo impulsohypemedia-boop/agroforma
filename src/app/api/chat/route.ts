@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { CREA_SYSTEM_CONTEXT } from "@/lib/crea/knowledge-base";
 
 export const maxDuration = 300;
 const BASE_SYSTEM = `Sos el asistente de AgroForma, la inteligencia artificial de la empresa agropecuaria argentina. Tenés acceso a la documentación que subió el usuario.
@@ -135,6 +136,11 @@ function buildSystemPrompt(ctx: Record<string, any> | null): string {
     }
     lines.push("");
   }
+
+  // ── Metodología CREA ─────────────────────────────────────────────────────
+  lines.push("## METODOLOGÍA CREA — BASE DE CONOCIMIENTO");
+  lines.push(CREA_SYSTEM_CONTEXT);
+  lines.push("");
 
   return lines.join("\n");
 }

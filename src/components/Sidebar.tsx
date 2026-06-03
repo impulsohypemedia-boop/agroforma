@@ -16,11 +16,11 @@ const navItemsTop = [
   { label: "Dashboard",  icon: LayoutDashboard, href: "/"         },
   { label: "Documentos", icon: FileText,         href: "/docs"    },
   { label: "Reportes",   icon: BarChart2,        href: "/reportes"},
-  { label: "Escenarios", icon: FlaskConical,     href: "/escenarios" },
 ];
 
-const navItemsBottom = [
-  { label: "Asistente", icon: MessageSquare, href: "/chat" },
+const asistenteSubItems = [
+  { label: "Chat",       icon: MessageSquare, href: "/chat" },
+  { label: "Escenarios", icon: FlaskConical,  href: "/escenarios" },
 ];
 
 const disabledItems = [
@@ -36,7 +36,9 @@ const gestionSubItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const isGestionActive = pathname.startsWith("/gestion");
+  const isAsistenteActive = pathname === "/chat" || pathname === "/escenarios";
   const [gestionOpen, setGestionOpen] = useState(isGestionActive);
+  const [asistenteOpen, setAsistenteOpen] = useState(isAsistenteActive);
   const [empresaDropOpen, setEmpresaDropOpen] = useState(false);
   const [nuevaEmpresaOpen, setNuevaEmpresaOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -51,6 +53,7 @@ export default function Sidebar() {
   }
 
   useEffect(() => { if (isGestionActive) setGestionOpen(true); }, [isGestionActive]);
+  useEffect(() => { if (isAsistenteActive) setAsistenteOpen(true); }, [isAsistenteActive]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -156,50 +159,56 @@ export default function Sidebar() {
             </div>
           </Link>
 
-          {/* Asistente */}
-          {navItemsBottom.map((item) => {
-            const active = pathname === item.href;
-            const Icon = item.icon;
-            return (
-              <Link key={item.label} href={item.href}>
-                <div className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${active ? "bg-white/15 text-white" : "text-white/55 hover:bg-white/8 hover:text-white/80"}`}>
-                  <Icon size={18} className={active ? "text-white" : "text-white/55"} />
-                  {item.label}
-                </div>
-              </Link>
-            );
-          })}
+          {/* Asistente collapsible */}
+          <div>
+            <button
+              onClick={() => setAsistenteOpen(v => !v)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${isAsistenteActive ? "bg-white/10 text-white" : "text-white/55 hover:bg-white/8 hover:text-white/80"}`}
+            >
+              <MessageSquare size={18} className={isAsistenteActive ? "text-white" : "text-white/55"} />
+              <span className="flex-1 text-left">Asistente</span>
+              <ChevronDown size={14} className={`transition-transform ${asistenteOpen ? "rotate-180" : ""} text-white/40`} />
+            </button>
+            {asistenteOpen && (
+              <div className="mt-1 ml-3 space-y-0.5">
+                {asistenteSubItems.map((sub) => {
+                  const active = pathname === sub.href;
+                  const Icon = sub.icon;
+                  return (
+                    <Link key={sub.label} href={sub.href}>
+                      <div className={`flex items-center gap-3 pl-6 pr-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${active ? "bg-white/15 text-white" : "text-white/45 hover:bg-white/8 hover:text-white/70"}`}>
+                        <Icon size={15} className={active ? "text-white" : "text-white/45"} />
+                        {sub.label}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {/* Gestión collapsible */}
           <div>
             <button
               onClick={() => setGestionOpen(v => !v)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer text-white/55 hover:bg-white/8 hover:text-white/80"
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${isGestionActive ? "bg-white/10 text-white" : "text-white/55 hover:bg-white/8 hover:text-white/80"}`}
             >
-              <LayoutGrid size={18} className="text-white/55" />
+              <LayoutGrid size={18} className={isGestionActive ? "text-white" : "text-white/55"} />
               <span className="flex-1 text-left">Gestión</span>
               <ChevronDown size={14} className={`transition-transform ${gestionOpen ? "rotate-180" : ""} text-white/40`} />
             </button>
             {gestionOpen && (
               <div className="mt-1 ml-3 space-y-0.5">
                 {gestionSubItems.map((sub) => {
+                  const active = pathname === sub.href;
                   const Icon = sub.icon;
                   return (
-                    <div
-                      key={sub.label}
-                      className="flex items-center gap-3 pl-6 pr-3 py-2 rounded-lg text-sm cursor-not-allowed"
-                      style={{ color: "rgba(255,255,255,0.25)" }}
-                      title="Esta función estará disponible próximamente"
-                    >
-                      <Icon size={15} />
-                      <span className="flex-1">{sub.label}</span>
-                      <span
-                        className="text-[9px] font-bold px-1.5 py-0.5 rounded"
-                        style={{ backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.30)" }}
-                      >
-                        Próximamente
-                      </span>
-                    </div>
+                    <Link key={sub.label} href={sub.href}>
+                      <div className={`flex items-center gap-3 pl-6 pr-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${active ? "bg-white/15 text-white" : "text-white/45 hover:bg-white/8 hover:text-white/70"}`}>
+                        <Icon size={15} className={active ? "text-white" : "text-white/45"} />
+                        {sub.label}
+                      </div>
+                    </Link>
                   );
                 })}
               </div>
@@ -260,7 +269,7 @@ export default function Sidebar() {
             <LogOut size={13} />
             Cerrar sesión
           </button>
-          <p className="text-[10px] px-2 mt-1" style={{ color: "rgba(255,255,255,0.18)" }}>v0.4.0</p>
+          <p className="text-[10px] px-2 mt-1" style={{ color: "rgba(255,255,255,0.18)" }}>v2.0.0 CREA</p>
         </div>
       </aside>
 

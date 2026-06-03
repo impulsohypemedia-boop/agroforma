@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Sidebar from "@/components/Sidebar";
 import { useAppContext } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 import { Campo, Lote, PROVINCIAS_ARG, CULTIVOS_LISTA } from "@/types/gestion";
-import { Plus, Trash2, Edit2, X, Sprout, MapPin, FileSpreadsheet, Map } from "lucide-react";
+import { Plus, Trash2, Edit2, X, Sprout, MapPin, FileSpreadsheet, Map, Download, Upload } from "lucide-react";
 import TabMapa from "./TabMapa";
+import { uploadFile } from "@/lib/supabase/storage";
+import { saveState, loadAllState } from "@/lib/supabase/db";
 
 // ─── Campo Modal ──────────────────────────────────────────────────────────────
 function CampoModal({
@@ -537,6 +540,135 @@ function EmptyState({ icon: Icon, text, sub }: { icon: React.ElementType; text: 
   );
 }
 
+// ─── Archivo CREA Card ────────────────────────────────────────────────────────
+interface AgricolaArchivo {
+  nombre: string;
+  path: string;
+  fecha: string;
+}
+
+function ArchivoCreCard() {
+  const { user } = useAuth();
+  const { empresaActivaId } = useAppContext();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [archivo, setArchivo] = useState<AgricolaArchivo | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load on mount
+  useEffect(() => {
+    if (!empresaActivaId) return;
+    loadAllState(empresaActivaId).then((state) => {
+      if (state.agricola_archivo) {
+        setArchivo(state.agricola_archivo as AgricolaArchivo);
+      }
+    });
+  }, [empresaActivaId]);
+
+  const handleFile = async (file: File) => {
+    if (!empresaActivaId || !user) return;
+    setUploading(true);
+    setError(null);
+    try {
+      // Build a sub-path inside the empresa folder using a subfolder prefix in the filename
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const customFile = new File([file], `agricola_${Date.now()}_${safeName}`, { type: file.type });
+      const { path } = await uploadFile(empresaActivaId, customFile);
+      const entry: AgricolaArchivo = {
+        nombre: file.name,
+        path,
+        fecha: new Date().toISOString(),
+      };
+      await saveState(empresaActivaId, "agricola_archivo", entry);
+      setArchivo(entry);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al subir archivo");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFile(file);
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+  };
+
+  const fechaFormateada = archivo
+    ? new Date(archivo.fecha).toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" })
+    : null;
+
+  return (
+    <div className="bg-white rounded-xl border" style={{ borderColor: "#E8E5DE" }}>
+      <div className="px-6 py-5 border-b flex items-center gap-3" style={{ borderColor: "#F0EDE6" }}>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#EBF3E8" }}>
+          <FileSpreadsheet size={16} style={{ color: "#3D7A1C" }} />
+        </div>
+        <div>
+          <p className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>Archivo de gestión agrícola CREA</p>
+          <p className="text-xs mt-0.5" style={{ color: "#9B9488" }}>Descargá la plantilla oficial CREA, completala y subila para habilitar reportes avanzados</p>
+        </div>
+      </div>
+
+      <div className="px-6 py-5">
+        {archivo ? (
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#EBF3E8" }}>
+                <FileSpreadsheet size={17} style={{ color: "#3D7A1C" }} />
+              </div>
+              <div>
+                <p className="text-sm font-medium" style={{ color: "#1A1A1A" }}>{archivo.nombre}</p>
+                <p className="text-xs mt-0.5" style={{ color: "#9B9488" }}>Subido el {fechaFormateada}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border cursor-pointer hover:bg-gray-50 transition-colors disabled:opacity-50"
+              style={{ borderColor: "#D6D1C8", color: "#6B6560" }}
+            >
+              <Upload size={13} /> {uploading ? "Subiendo..." : "Reemplazar"}
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 flex-wrap">
+            <a
+              href="/plantillas-crea/plantilla-campana-agricola.xlsx"
+              download
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-colors hover:opacity-90"
+              style={{ borderColor: "#3D7A1C", color: "#3D7A1C", backgroundColor: "#EBF3E8" }}
+            >
+              <Download size={14} /> Descargar plantilla CREA
+            </a>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading || !empresaActivaId}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              style={{ backgroundColor: "#3D7A1C" }}
+            >
+              <Upload size={14} /> {uploading ? "Subiendo..." : "Subir mi archivo"}
+            </button>
+          </div>
+        )}
+
+        {error && (
+          <p className="mt-3 text-xs font-medium" style={{ color: "#C0392B" }}>{error}</p>
+        )}
+      </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xlsm"
+        className="hidden"
+        onChange={handleInputChange}
+      />
+    </div>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 type Tab = "campos" | "plan" | "resumen" | "mapa";
 
@@ -563,6 +695,9 @@ export default function AgricolaClient() {
             </div>
           </header>
           <main className="px-8 py-7 max-w-6xl space-y-6">
+            {/* Archivo CREA */}
+            <ArchivoCreCard />
+
             {/* Tabs */}
             <div className="flex gap-1 p-1 rounded-xl border w-fit" style={{ backgroundColor: "#F0EDE6", borderColor: "#E8E5DE" }}>
               {tabs.map((t) => (

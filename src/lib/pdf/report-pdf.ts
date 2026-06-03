@@ -181,16 +181,35 @@ function renderMargenBruto(doc: jsPDF, d: any, startY: number) {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function renderRatios(doc: jsPDF, d: any, startY: number) {
   const ratios: unknown[] = d.ratios ?? [];
-  let y = sectionTitle(doc, "RATIOS E INDICADORES", startY);
-  const head = [["Ratio", "Categoría", "Actual", "Anterior", "Variación"]];
+  let y = sectionTitle(doc, "INDICADORES CREA", startY);
+  const head = [["Indicador", "Categoría", "Actual", "Ref. CREA", "Semáforo"]];
+  const semaforoColor: Record<string, [number, number, number]> = {
+    verde: [30, 126, 52], amarillo: [212, 173, 60], rojo: [192, 57, 43],
+  };
   const body = ratios.map((r: unknown) => {
     const ri = r as Record<string, unknown>;
     const unit = safe(ri.unidad);
     const fmtV = (v: unknown) => v === null || v === undefined ? "—" : unit === "pct" ? fmtPct(v) : `${fmtNum(v)}${unit === "veces" ? "x" : ""}`;
-    return [safe(ri.nombre), safe(ri.categoria), fmtV(ri.valor_actual), fmtV(ri.valor_anterior), fmtV(ri.variacion)];
+    return [
+      safe(ri.indicador ?? ri.nombre),
+      safe(ri.categoria),
+      fmtV(ri.valor_actual),
+      safe(ri.valor_referencia ?? "—"),
+      safe(ri.semaforo ?? "—"),
+    ];
   });
   if (body.length === 0) body.push(["Sin datos", "—", "—", "—", "—"]);
-  autoTable(doc, { startY: y, head, body, headStyles: HEAD, alternateRowStyles: ALT, bodyStyles: BODY, margin: { left: 14, right: 14 } });
+  autoTable(doc, {
+    startY: y, head, body, headStyles: HEAD, alternateRowStyles: ALT, bodyStyles: BODY,
+    margin: { left: 14, right: 14 },
+    didParseCell(data) {
+      if (data.section === "body" && data.column.index === 4) {
+        const semaforo = String(data.cell.raw).toLowerCase();
+        const color = semaforoColor[semaforo];
+        if (color) data.cell.styles.textColor = color;
+      }
+    },
+  });
   y = lastY(doc) + 4;
   if (d.nota) {
     doc.setFontSize(8);
@@ -426,19 +445,256 @@ function renderEvolucionHistorica(doc: jsPDF, d: any, startY: number) {
   }
 }
 
+// ─── EBITDA ──────────────────────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function renderEbitda(doc: jsPDF, d: any, startY: number) {
+  let y = sectionTitle(doc, "EBITDA AGROPECUARIO", startY);
+  const detalle: unknown[] = d.detalle ?? [];
+  const head = [["Concepto", "Monto"]];
+  const body = detalle.map((item: unknown) => {
+    const it = item as Record<string, unknown>;
+    return [safe(it.concepto), fmtNum(it.monto)];
+  });
+  if (body.length === 0) body.push(["Sin datos", "—"]);
+  autoTable(doc, { startY: y, head, body, headStyles: HEAD, alternateRowStyles: ALT, bodyStyles: BODY, margin: { left: 14, right: 14 } });
+
+  y = lastY(doc) + 4;
+  autoTable(doc, {
+    startY: y,
+    body: [
+      ["EBITDA",       fmtNum(d.ebitda)],
+      ["Ventas Netas", fmtNum(d.ventas_netas)],
+      ["Margen EBITDA", fmtPct(d.ebitda_margin_pct)],
+    ],
+    bodyStyles: { ...BODY, fontStyle: "bold" as const, fillColor: C.dark, textColor: C.white },
+    margin: { left: 14, right: 14 },
+  });
+
+  if (d.interpretacion) {
+    y = lastY(doc) + 6;
+    doc.setFontSize(8);
+    doc.setTextColor(...C.muted);
+    const lines = doc.splitTextToSize(String(d.interpretacion), 180);
+    doc.text(lines, 14, y);
+  }
+}
+
+// ─── RPP (Resultado por Producción) ─────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function renderRPP(doc: jsPDF, d: any, startY: number) {
+  const cascada: unknown[] = d.cascada ?? [];
+  let y = sectionTitle(doc, "CASCADA RPP - METODOLOGÍA CREA", startY);
+  const subtotales = new Set([3, 5, 9, 12, 14]);
+  const head = [["#", "Concepto", "$ Corrientes", "$ Constantes", "U$S", "% I.Neto", "% EBITDA"]];
+  const body = cascada.map((item: unknown) => {
+    const it = item as Record<string, unknown>;
+    return [
+      safe(it.id), safe(it.nombre),
+      fmtNum(it.pesos_corrientes), fmtNum(it.pesos_constantes), fmtNum(it.dolares),
+      fmtPct(it.pct_ingreso), fmtPct(it.pct_ebitda),
+    ];
+  });
+  if (body.length === 0) body.push(["—", "Sin datos", "—", "—", "—", "—", "—"]);
+  autoTable(doc, {
+    startY: y, head, body, headStyles: HEAD, bodyStyles: BODY,
+    margin: { left: 14, right: 14 },
+    didParseCell(data) {
+      if (data.section === "body") {
+        const id = Number(cascada[data.row.index] && (cascada[data.row.index] as Record<string, unknown>).id);
+        if (subtotales.has(id)) {
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.fillColor = C.amber;
+          data.cell.styles.textColor = C.text;
+        } else if (data.row.index % 2 === 0) {
+          data.cell.styles.fillColor = C.grey;
+        }
+      }
+    },
+  });
+
+  y = lastY(doc) + 4;
+  y = sectionTitle(doc, "RENTABILIDAD", y);
+  autoTable(doc, {
+    startY: y,
+    body: [
+      ["Activo al Inicio", fmtNum(d.activo_inicio)],
+      ["Rentabilidad Operativa (EBITDA/Activo)", fmtPct((d.rentabilidad_operativa ?? 0) * 100)],
+      ["Rentabilidad por Producción (RPP/Activo)", fmtPct((d.rentabilidad_produccion ?? 0) * 100)],
+    ],
+    alternateRowStyles: ALT, bodyStyles: BODY, margin: { left: 14, right: 14 },
+  });
+}
+
+// ─── Margen de Contribución por Actividad ──────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function renderMargenContribucion(doc: jsPDF, d: any, startY: number) {
+  const acts: unknown[] = d.actividades ?? [];
+  const rows = [
+    { key: "ingreso_neto", label: "Ingreso Neto" },
+    { key: "gastos_variables", label: "Gastos Variables" },
+    { key: "contribucion_marginal", label: "Contribución Marginal" },
+    { key: "gastos_fijos", label: "Gastos Fijos" },
+    { key: "margen_bruto", label: "Margen Bruto" },
+    { key: "amortizaciones", label: "Amortizaciones" },
+    { key: "impuestos", label: "Impuestos" },
+    { key: "tenencia_bc", label: "Tenencia BC" },
+    { key: "margen_contribucion", label: "Margen de Contribución" },
+  ];
+  const actNames = acts.map((a: unknown) => safe((a as Record<string, unknown>).nombre));
+  let y = sectionTitle(doc, "MARGEN DE CONTRIBUCIÓN POR ACTIVIDAD", startY);
+  const head = [["Concepto", ...actNames, "Total"]];
+  const subtotalKeys = new Set(["contribucion_marginal", "margen_bruto", "margen_contribucion"]);
+  const body = rows.map(r => [
+    r.label,
+    ...acts.map((a: unknown) => fmtNum((a as Record<string, number>)[r.key])),
+    fmtNum(d.totales?.[r.key] ?? 0),
+  ]);
+  autoTable(doc, {
+    startY: y, head, body, headStyles: HEAD, bodyStyles: BODY,
+    margin: { left: 14, right: 14 },
+    didParseCell(data) {
+      if (data.section === "body" && subtotalKeys.has(rows[data.row.index]?.key)) {
+        data.cell.styles.fontStyle = "bold";
+        data.cell.styles.fillColor = C.amber;
+      } else if (data.section === "body" && data.row.index % 2 === 0) {
+        data.cell.styles.fillColor = C.grey;
+      }
+    },
+  });
+
+  y = lastY(doc) + 4;
+  y = sectionTitle(doc, "PARTICIPACIÓN RELATIVA", y);
+  autoTable(doc, {
+    startY: y,
+    head: [["", ...actNames, "Total"]],
+    body: [
+      ["% Ingreso Neto", ...acts.map((a: unknown) => fmtPct((a as Record<string, number>).pct_ingreso_total)), "100%"],
+      ["% Margen Contribución", ...acts.map((a: unknown) => fmtPct((a as Record<string, number>).pct_margen_total)), "100%"],
+    ],
+    headStyles: HEAD, bodyStyles: BODY, margin: { left: 14, right: 14 },
+  });
+}
+
+// ─── Valorización de Bienes de Cambio ──────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function renderValorizacionBC(doc: jsPDF, d: any, startY: number) {
+  let y = startY;
+  const productos: unknown[] = d.productos ?? [];
+  const insumos: unknown[] = d.insumos ?? [];
+
+  function renderBCSection(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    items: any[], tipo: "Producto" | "Insumo", currentY: number
+  ): number {
+    for (const item of items) {
+      if (currentY > 240) { doc.addPage(); currentY = 20; }
+      currentY = sectionTitle(doc, `${tipo.toUpperCase()}: ${safe(item.nombre)}`, currentY);
+      const u = item.unidades ?? {};
+      const pc = item.pesos_corrientes ?? {};
+      const dl = item.dolares ?? {};
+      const filas = tipo === "Producto"
+        ? ["inicio", "produccion", "ventas_netas", "cesiones", "cierre_calculado", "tenencia", "cierre_ajustado", "exposicion"]
+        : ["inicio", "compras", "consumo", "cesiones", "cierre_calculado", "tenencia", "cierre_ajustado", "exposicion"];
+      const labels = tipo === "Producto"
+        ? ["Stock Inicio", "Producción", "Ventas Netas", "Cesiones", "Cierre Calculado", "Tenencia", "Cierre Ajustado", "Exposición"]
+        : ["Stock Inicio", "Compras", "Consumo", "Cesiones", "Cierre Calculado", "Tenencia", "Cierre Ajustado", "Exposición"];
+      const body = filas.map((key, i) => [
+        labels[i], fmtNum(u[key] ?? u[key.replace("_netas", "")] ?? 0), fmtNum(pc[key] ?? 0), fmtNum(dl[key] ?? 0),
+      ]);
+      autoTable(doc, {
+        startY: currentY,
+        head: [["Concepto", "Unidades", "$ Corrientes", "U$S"]],
+        body, headStyles: HEAD, alternateRowStyles: ALT, bodyStyles: BODY,
+        margin: { left: 14, right: 14 },
+      });
+      currentY = lastY(doc) + 4;
+    }
+    return currentY;
+  }
+
+  if (productos.length > 0) {
+    y = sectionTitle(doc, "PRODUCTOS (GRANOS)", y);
+    y = renderBCSection(productos, "Producto", y);
+  }
+  if (insumos.length > 0) {
+    y = sectionTitle(doc, "INSUMOS", y);
+    y = renderBCSection(insumos, "Insumo", y);
+  }
+  if (productos.length === 0 && insumos.length === 0) {
+    doc.setFontSize(10);
+    doc.setTextColor(...C.text);
+    doc.text("Sin datos de bienes de cambio.", 14, y + 10);
+  }
+}
+
+// ─── Generic table renderer for reports without a specific renderer ────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function renderGeneric(doc: jsPDF, d: any, startY: number) {
+  let y = startY;
+  if (!d || typeof d !== "object") {
+    doc.setFontSize(10);
+    doc.setTextColor(...C.text);
+    doc.text("Datos no disponibles.", 14, y + 10);
+    return;
+  }
+
+  // Render top-level key-value pairs
+  const scalars: [string, string][] = [];
+  const arrays: [string, unknown[]][] = [];
+  for (const [key, val] of Object.entries(d)) {
+    if (val === null || val === undefined) continue;
+    if (Array.isArray(val)) { arrays.push([key, val]); continue; }
+    if (typeof val === "object") continue;
+    scalars.push([key.replace(/_/g, " "), typeof val === "number" ? fmtNum(val) : String(val)]);
+  }
+  if (scalars.length > 0) {
+    y = sectionTitle(doc, "RESUMEN", y);
+    autoTable(doc, { startY: y, body: scalars, alternateRowStyles: ALT, bodyStyles: BODY, margin: { left: 14, right: 14 } });
+    y = lastY(doc) + 4;
+  }
+
+  // Render arrays as tables
+  for (const [key, arr] of arrays) {
+    if (arr.length === 0 || typeof arr[0] !== "object") continue;
+    if (y > 240) { doc.addPage(); y = 20; }
+    y = sectionTitle(doc, key.replace(/_/g, " ").toUpperCase(), y);
+    const cols = Object.keys(arr[0] as Record<string, unknown>);
+    const head = [cols.map(c => c.replace(/_/g, " "))];
+    const body = arr.map((row: unknown) => {
+      const r = row as Record<string, unknown>;
+      return cols.map(c => {
+        const v = r[c];
+        if (v === null || v === undefined) return "—";
+        if (typeof v === "number") return fmtNum(v);
+        return String(v);
+      });
+    });
+    autoTable(doc, { startY: y, head, body, headStyles: HEAD, alternateRowStyles: ALT, bodyStyles: BODY, margin: { left: 14, right: 14 } });
+    y = lastY(doc) + 4;
+  }
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 export function generateReportPDF(report: GeneratedReport) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const d = report.data;
 
   const TITLES: Record<string, string> = {
-    "situacion-patrimonial": "SITUACIÓN PATRIMONIAL",
-    "margen-bruto":          "MARGEN BRUTO POR CULTIVO",
-    "ratios":                "RATIOS E INDICADORES",
-    "bridge":                "BRIDGE DE RESULTADOS",
-    "break-even":            "PUNTO DE EQUILIBRIO",
-    "calificacion-bancaria": "CALIFICACIÓN BANCARIA",
-    "evolucion-historica":   "EVOLUCIÓN HISTÓRICA",
+    "situacion-patrimonial":  "SITUACIÓN PATRIMONIAL",
+    "margen-bruto":           "MARGEN BRUTO POR CULTIVO",
+    "ratios":                 "INDICADORES CREA",
+    "bridge":                 "BRIDGE DE RESULTADOS",
+    "break-even":             "PUNTO DE EQUILIBRIO",
+    "calificacion-bancaria":  "CALIFICACIÓN BANCARIA",
+    "evolucion-historica":    "EVOLUCIÓN HISTÓRICA",
+    "ebitda":                 "EBITDA AGROPECUARIO",
+    "rpp":                    "RESULTADO POR PRODUCCIÓN (RPP)",
+    "margen-contribucion":    "MARGEN DE CONTRIBUCIÓN POR ACTIVIDAD",
+    "valorizacion-bc":        "VALORIZACIÓN DE BIENES DE CAMBIO",
+    "real-vs-presupuesto":    "REAL VS PRESUPUESTADO",
+    "resultado-unidad-negocio": "RESULTADO POR UNIDAD DE NEGOCIO",
+    "dashboard-mensual":      "DASHBOARD MENSUAL",
+    "seguimiento-campana":    "SEGUIMIENTO DE CAMPAÑA",
   };
 
   const title = TITLES[report.reportId] ?? report.title.toUpperCase();
@@ -452,10 +708,11 @@ export function generateReportPDF(report: GeneratedReport) {
     case "break-even":            renderBreakEven(doc, d, startY); break;
     case "calificacion-bancaria": renderCalificacion(doc, d, startY); break;
     case "evolucion-historica":   renderEvolucionHistorica(doc, d, startY); break;
-    default:
-      doc.setFontSize(10);
-      doc.setTextColor(...C.text);
-      doc.text("Reporte sin previsualización específica.", 14, startY + 10);
+    case "ebitda":                renderEbitda(doc, d, startY); break;
+    case "rpp":                   renderRPP(doc, d, startY); break;
+    case "margen-contribucion":   renderMargenContribucion(doc, d, startY); break;
+    case "valorizacion-bc":       renderValorizacionBC(doc, d, startY); break;
+    default:                      renderGeneric(doc, d, startY); break;
   }
 
   // Footer on each page

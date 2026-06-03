@@ -6,6 +6,7 @@ import {
   Calendar, Map, Building2, Loader2, LucideIcon, FileText, Lock,
   ChevronDown, ChevronRight, CheckCircle2, XCircle, X, Upload as UploadIcon, History, RefreshCw,
   DollarSign, ArrowLeftRight, PieChart, LayoutDashboard, ClipboardCheck,
+  Layers, Package, Activity,
 } from "lucide-react";
 import { AnalysisResult, ReportePosible } from "@/types/analysis";
 import { GeneratedReport } from "@/types/report";
@@ -26,6 +27,9 @@ const REPORT_ICONS: Record<string, LucideIcon> = {
   resultado_unidad_negocio: PieChart,
   dashboard_mensual:      LayoutDashboard,
   seguimiento_campana:    ClipboardCheck,
+  rpp:                    Activity,
+  margen_contribucion:    Layers,
+  valorizacion_bc:        Package,
 };
 
 // ─── Implemented report IDs ───────────────────────────────────────────────────
@@ -34,6 +38,7 @@ const IMPLEMENTED = new Set([
   "bridge", "break_even", "calificacion_bancaria", "evolucion_historica",
   "ebitda", "real_vs_presupuesto", "resultado_unidad_negocio",
   "dashboard_mensual", "seguimiento_campana",
+  "rpp", "margen_contribucion", "valorizacion_bc",
 ]);
 
 // ─── Report descriptions (what it IS, not what's needed) ─────────────────────
@@ -52,6 +57,9 @@ const REPORT_DESCRIPTIONS: Record<string, string> = {
   resultado_unidad_negocio: "Resultado segregado por actividad: agricultura, ganadería, servicios",
   dashboard_mensual:      "Tablero mensual con ingresos, egresos y resultado acumulado",
   seguimiento_campana:    "Avance de siembra y cosecha vs plan, por lote y cultivo",
+  rpp:                    "Cascada completa de resultados segun normas CREA: Ingreso Neto a Resultado por Produccion",
+  margen_contribucion:    "Aporte de cada actividad (agricultura, ganaderia, lecheria, servicios) al resultado total",
+  valorizacion_bc:        "Valorizacion de stocks de granos e insumos con tenencia y exposicion a inflacion",
 };
 
 // ─── Frontend report requirement rules (overrides AI analysis) ──────────────
@@ -119,6 +127,21 @@ const REPORT_RULES: Record<string, ReportRule> = {
     requiere: ["plan_siembra"],
     motivo: "Necesitás subir el plan de siembra y datos de avance de cosecha",
   },
+  rpp: {
+    requiere: ["balance"],
+    minBalances: 1,
+    motivo: "Necesitás subir al menos 1 balance con estado de resultados",
+  },
+  margen_contribucion: {
+    requiere: ["balance"],
+    minBalances: 1,
+    motivo: "Necesitás subir al menos 1 balance con detalle por actividad",
+  },
+  valorizacion_bc: {
+    requiere: ["balance"],
+    minBalances: 1,
+    motivo: "Necesitás subir documentación con stocks de granos o insumos",
+  },
 };
 
 /**
@@ -143,9 +166,12 @@ function meetsRequirements(reportId: string, detectedTipos: string[], balanceCou
 // ─── Hints for available reports ──────────────────────────────────────────────
 const REPORT_HINTS: Record<string, string> = {
   situacion_patrimonial:  "Subí más balances para ver evolución histórica",
-  ratios:                 "Con más ejercicios se calculan tendencias",
+  ratios:                 "Indicadores CREA con semaforos verde/amarillo/rojo",
   ebitda:                 "Se calcula automáticamente desde el balance",
   calificacion_bancaria:  "Sumá datos de campos, hacienda y maquinaria para completar",
+  rpp:                    "Cascada completa segun metodologia CREA en 3 monedas",
+  margen_contribucion:    "Desglose por actividad segun normas CREA",
+  valorizacion_bc:        "Incluye calculo de tenencia y exposicion a inflacion/devaluacion",
 };
 
 // ─── Calificación bancaria completeness ─────────────────────────────────────
@@ -206,6 +232,16 @@ const REQUIRED_DOCS: Record<string, { label: string; tipos: string[] }[]> = {
   ranking_campos: [
     { label: "Planilla de producción detallada por campo o potrero", tipos: ["planilla_stock", "plan_siembra"] },
     { label: "Balance o estado de resultados", tipos: ["balance"] },
+  ],
+  rpp: [
+    { label: "Balance con estado de resultados", tipos: ["balance"] },
+  ],
+  margen_contribucion: [
+    { label: "Balance con detalle por actividad (agricultura, ganadería, etc.)", tipos: ["balance"] },
+  ],
+  valorizacion_bc: [
+    { label: "Balance o informe con stocks de granos e insumos", tipos: ["balance"] },
+    { label: "Liquidaciones de granos (opcional, mejora precisión)", tipos: ["liquidacion_granos"] },
   ],
 };
 
@@ -641,11 +677,41 @@ export default function DocumentAnalysis({
   const balanceCount  = detectedTipos.filter((t) => t === "balance").length;
   const docSummary    = analysis.documentos_detectados.map((d) => d.descripcion || d.tipo).join(" · ");
 
+  // Ensure all known reports are present (backfill reports missing from older analyses)
+  const ALL_KNOWN_REPORTS: ReportePosible[] = [
+    { id: "situacion_patrimonial", nombre: "Situación Patrimonial", descripcion: "", disponible: false, motivo: "Requiere balance" },
+    { id: "margen_bruto", nombre: "Margen Bruto por Cultivo", descripcion: "", disponible: false, motivo: "Requiere balance y plan de siembra" },
+    { id: "ratios", nombre: "Indicadores CREA", descripcion: "", disponible: false, motivo: "Requiere balance" },
+    { id: "bridge", nombre: "Bridge de Resultados", descripcion: "", disponible: false, motivo: "Requiere 2+ balances" },
+    { id: "break_even", nombre: "Punto de Equilibrio", descripcion: "", disponible: false, motivo: "Requiere balance y plan de siembra" },
+    { id: "calificacion_bancaria", nombre: "Calificación Bancaria", descripcion: "", disponible: false, motivo: "Requiere balance" },
+    { id: "evolucion_historica", nombre: "Evolución Histórica", descripcion: "", disponible: false, motivo: "Requiere 2+ balances" },
+    { id: "ebitda", nombre: "EBITDA Agro", descripcion: "", disponible: false, motivo: "Requiere balance" },
+    { id: "real_vs_presupuesto", nombre: "Real vs Presupuestado", descripcion: "", disponible: false, motivo: "Requiere balance y presupuesto" },
+    { id: "resultado_unidad_negocio", nombre: "Resultado por Unidad de Negocio", descripcion: "", disponible: false, motivo: "Requiere balance" },
+    { id: "dashboard_mensual", nombre: "Dashboard Mensual", descripcion: "", disponible: false, motivo: "Requiere balance y extractos bancarios" },
+    { id: "seguimiento_campana", nombre: "Seguimiento de Campaña", descripcion: "", disponible: false, motivo: "Requiere plan de siembra" },
+    { id: "rpp", nombre: "Resultado por Producción (RPP)", descripcion: "", disponible: false, motivo: "Requiere balance" },
+    { id: "margen_contribucion", nombre: "Margen de Contribución por Actividad", descripcion: "", disponible: false, motivo: "Requiere balance" },
+    { id: "valorizacion_bc", nombre: "Valorización de Bienes de Cambio", descripcion: "", disponible: false, motivo: "Requiere balance" },
+    { id: "proyeccion", nombre: "Proyección de Campaña", descripcion: "", disponible: false, motivo: "Requiere plan de siembra" },
+    { id: "ranking_campos", nombre: "Ranking de Campos", descripcion: "", disponible: false, motivo: "Requiere detalle por campo" },
+  ];
+  const existingIds = new Set(analysis.reportes_posibles.map(r => r.id));
+  const allReportes = [
+    ...analysis.reportes_posibles,
+    ...ALL_KNOWN_REPORTS.filter(r => !existingIds.has(r.id)).map(r => ({
+      ...r,
+      // Auto-detect availability based on frontend rules
+      disponible: meetsRequirements(r.id, detectedTipos, balanceCount),
+    })),
+  ];
+
   // Frontend enforcement: override AI availability with strict rules
-  const available   = analysis.reportes_posibles.filter(
+  const available   = allReportes.filter(
     (r) => r.disponible && meetsRequirements(r.id, detectedTipos, balanceCount)
   );
-  const unavailable = analysis.reportes_posibles.filter(
+  const unavailable = allReportes.filter(
     (r) => !r.disponible || !meetsRequirements(r.id, detectedTipos, balanceCount)
   );
 

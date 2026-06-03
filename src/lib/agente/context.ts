@@ -12,6 +12,7 @@ import { GeneratedReport } from "@/types/report";
 import { AnalysisResult, ExtractedDocData } from "@/types/analysis";
 import { Campo, Lote, StockPorCampo, MovimientoHacienda, ArchivoPlano } from "@/types/gestion";
 import { Presentacion } from "@/types/presentacion";
+import { CREA_SYSTEM_CONTEXT } from "@/lib/crea/knowledge-base";
 
 type EmpresaContext = {
   empresa:             Empresa;
@@ -212,6 +213,11 @@ export function buildAgenteSystemPrompt(ctx: EmpresaContext): string {
     }
     lines.push("");
   }
+
+  // ── Metodología CREA ─────────────────────────────────────────────────────
+  lines.push("## METODOLOGÍA CREA — BASE DE CONOCIMIENTO");
+  lines.push(CREA_SYSTEM_CONTEXT);
+  lines.push("");
 
   lines.push("---");
   lines.push("Usá toda esta información para responder las consultas del usuario con precisión.");

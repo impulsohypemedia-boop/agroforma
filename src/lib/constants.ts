@@ -7,7 +7,7 @@
 export const REPORT_LABELS: Record<string, string> = {
   "situacion-patrimonial":     "Situación Patrimonial",
   "margen-bruto":              "Margen Bruto por Cultivo",
-  "ratios":                    "Ratios e Indicadores",
+  "ratios":                    "Indicadores CREA",
   "bridge":                    "Bridge de Resultados",
   "break-even":                "Punto de Equilibrio",
   "calificacion-bancaria":     "Calificación Bancaria",
@@ -17,6 +17,9 @@ export const REPORT_LABELS: Record<string, string> = {
   "resultado-unidad-negocio":  "Resultado por Unidad de Negocio",
   "dashboard-mensual":         "Dashboard Mensual",
   "seguimiento-campana":       "Seguimiento de Campaña",
+  "rpp":                       "Resultado por Producción (RPP)",
+  "margen-contribucion":       "Margen de Contribución por Actividad",
+  "valorizacion-bc":           "Valorización de Bienes de Cambio",
 };
 
 /**

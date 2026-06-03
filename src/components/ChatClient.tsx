@@ -4,9 +4,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Send, Trash2, Upload, Plus, FileDown, FileSpreadsheet,
   MessageSquare, FileText, Download, Save, Eye, Sparkles,
+  Paperclip, X, Loader2,
 } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import { useAppContext } from "@/context/AppContext";
+import { uploadFile } from "@/lib/supabase/storage";
 import { GeneratedReport } from "@/types/report";
 import { generateChatMessagePDF } from "@/lib/pdf/report-pdf";
 import { extractOutermostJSON } from "@/lib/extractJSON";
@@ -567,9 +569,9 @@ const SUGGESTIONS = [
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function ChatClient() {
   const {
-    fileStore, documents, empresaActiva, empresaActivaId, generatedReports, setEscenarios,
+    fileStore, documents, setDocuments, empresaActiva, empresaActivaId, generatedReports, setEscenarios,
     presentaciones, presentacionBlobMap,
-    analysisResult, extractedDocsData,
+    analysisResult, setAnalysisResult, extractedDocsData,
     campos, planSiembra, campanaActual,
     stockHacienda, movimientosHacienda, archivosPlanos,
   } = useAppContext();
@@ -580,10 +582,13 @@ export default function ChatClient() {
   const [streaming,      setStreaming]      = useState(false);
   const [hydrated,       setHydrated]       = useState(false);
   const [previewReport,  setPreviewReport]  = useState<GeneratedReport | null>(null);
+  const [attachedFiles,  setAttachedFiles]  = useState<File[]>([]);
+  const [uploading,      setUploading]      = useState(false);
 
-  const bottomRef   = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const abortRef    = useRef<AbortController | null>(null);
+  const bottomRef    = useRef<HTMLDivElement>(null);
+  const textareaRef  = useRef<HTMLTextAreaElement>(null);
+  const abortRef     = useRef<AbortController | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const convKey   = empresaActivaId ? `agroforma_empresa_${empresaActivaId}_conversations` : "agroforma_conversations";
   const activeKey = empresaActivaId ? `agroforma_empresa_${empresaActivaId}_active_conv`   : "agroforma_active_conv";
@@ -675,12 +680,98 @@ export default function ChatClient() {
     setPreviewReport(fakeReport);
   }, []);
 
+  // ── File attachment handlers ────────────────────────────────────────────────
+  const handleAttachFiles = useCallback((files: FileList | null) => {
+    if (!files) return;
+    const validExts = [".pdf", ".xlsx", ".xls", ".xlsm", ".csv"];
+    const valid = Array.from(files).filter(f => {
+      const ext = "." + (f.name.split(".").pop()?.toLowerCase() ?? "");
+      return validExts.includes(ext);
+    });
+    setAttachedFiles(prev => [...prev, ...valid]);
+  }, []);
+
+  const removeAttached = useCallback((idx: number) => {
+    setAttachedFiles(prev => prev.filter((_, i) => i !== idx));
+  }, []);
+
+  const uploadAndAnalyzeFiles = useCallback(async (files: File[], convId: string) => {
+    if (!empresaActivaId || files.length === 0) return;
+
+    // Add system message: uploading
+    const fileNames = files.map(f => f.name).join(", ");
+    const uploadMsg: Message = { role: "assistant", content: `Documento${files.length > 1 ? "s" : ""} subido${files.length > 1 ? "s" : ""}: ${fileNames}. Analizando...` };
+    setConversations(prev => prev.map(c => {
+      if (c.id !== convId) return c;
+      return { ...c, messages: [...c.messages, uploadMsg], updatedAt: new Date().toISOString() };
+    }));
+
+    try {
+      // Upload files to storage
+      const uploaded: { name: string; path: string }[] = [];
+      for (const file of files) {
+        const { path } = await uploadFile(empresaActivaId, file);
+        uploaded.push({ name: file.name, path });
+      }
+
+      // Add to documents
+      const today = new Date().toISOString().split("T")[0];
+      const newDocs = uploaded.map(u => ({
+        id: crypto.randomUUID(),
+        name: u.name,
+        type: (u.name.toLowerCase().endsWith(".pdf") ? "PDF" : "XLSX") as import("@/types/document").DocType,
+        size: 0,
+        date: today,
+        status: "Cargado" as const,
+        storage_path: u.path,
+      }));
+
+      // Update documents in context
+      setDocuments(prev => [...prev, ...newDocs]);
+
+      // Trigger incremental analysis
+      const allDocs = [...documents, ...newDocs];
+      const fileRefs = allDocs.filter(d => d.storage_path).map(d => ({ name: d.name, path: d.storage_path! }));
+
+      const existingExtracted = extractedDocsData.length > 0 ? extractedDocsData : undefined;
+      const payload: Record<string, unknown> = {};
+      if (existingExtracted) payload.extractedData = existingExtracted;
+      payload.files = fileRefs;
+
+      const res = await fetch("/api/analizar-documentos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const { data } = await res.json();
+        setAnalysisResult(data);
+
+        // Success message
+        const doneMsg: Message = { role: "assistant", content: "Analisis completo. Ya podes generar nuevos reportes." };
+        setConversations(prev => prev.map(c => {
+          if (c.id !== convId) return c;
+          return { ...c, messages: [...c.messages, doneMsg], updatedAt: new Date().toISOString() };
+        }));
+      }
+    } catch (err) {
+      const errMsg: Message = { role: "assistant", content: `Error al procesar: ${err instanceof Error ? err.message : "Error desconocido"}` };
+      setConversations(prev => prev.map(c => {
+        if (c.id !== convId) return c;
+        return { ...c, messages: [...c.messages, errMsg], updatedAt: new Date().toISOString() };
+      }));
+    }
+  }, [empresaActivaId, documents, extractedDocsData, setDocuments, setAnalysisResult]);
+
   // ── Send message ───────────────────────────────────────────────────────────
   const empresa = empresaActiva?.nombre ?? analysisResult?.empresa ?? null;
 
   const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
-    if (!trimmed || streaming) return;
+    const filesToUpload = [...attachedFiles];
+    if ((!trimmed && filesToUpload.length === 0) || streaming) return;
+    setAttachedFiles([]);
 
     let convId = activeId;
     if (!convId) {
@@ -815,7 +906,14 @@ export default function ChatClient() {
       setStreaming(false);
       abortRef.current = null;
     }
-  }, [messages, streaming, fileStore, analysisResult, generatedReports, activeId, presentaciones, presentacionBlobMap]);
+
+    // Upload attached files after message is sent
+    if (filesToUpload.length > 0) {
+      setUploading(true);
+      await uploadAndAnalyzeFiles(filesToUpload, convId!);
+      setUploading(false);
+    }
+  }, [messages, streaming, fileStore, analysisResult, generatedReports, activeId, presentaciones, presentacionBlobMap, attachedFiles, uploadAndAnalyzeFiles]);
 
   const handleSubmit  = (e: React.FormEvent) => { e.preventDefault(); sendMessage(input); };
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -939,27 +1037,65 @@ export default function ChatClient() {
           {/* Input */}
           <div className="shrink-0 px-8 py-4 border-t" style={{ backgroundColor: "#FFFFFF", borderColor: "#E8E5DE" }}>
             <form onSubmit={handleSubmit} style={{ maxWidth: 780, margin: "0 auto" }}>
+              {/* Attached files chips */}
+              {attachedFiles.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {attachedFiles.map((f, i) => (
+                    <div key={i} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium" style={{ backgroundColor: "#EBF3E8", color: "#3D7A1C", border: "1px solid #C8E6C0" }}>
+                      <FileText size={12} />
+                      <span className="truncate max-w-[180px]">{f.name}</span>
+                      <button type="button" onClick={() => removeAttached(i)} className="cursor-pointer hover:opacity-70 shrink-0">
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {uploading && (
+                <div className="flex items-center gap-2 mb-2 text-xs" style={{ color: "#3D7A1C" }}>
+                  <Loader2 size={13} className="animate-spin" />
+                  Subiendo y analizando documento...
+                </div>
+              )}
               <div
                 className="flex items-end gap-3 rounded-2xl border px-4 py-3 transition-colors"
                 style={{ borderColor: "#D6D1C8", backgroundColor: "#FAFAF8" }}
                 onFocusCapture={(e) => (e.currentTarget.style.borderColor = "#3D7A1C")}
                 onBlurCapture={(e)  => (e.currentTarget.style.borderColor = "#D6D1C8")}
               >
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={streaming || uploading}
+                  className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer hover:bg-gray-100"
+                  style={{ color: "#9B9488" }}
+                  title="Adjuntar documento"
+                >
+                  <Paperclip size={16} />
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.xlsx,.xls,.xlsm,.csv"
+                  className="hidden"
+                  onChange={(e) => { handleAttachFiles(e.target.files); e.target.value = ""; }}
+                />
                 <textarea
                   ref={textareaRef}
                   value={input}
                   onChange={(e) => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px"; }}
                   onKeyDown={handleKeyDown}
                   placeholder={reportsCount > 0 ? "Preguntá o pedí modificar un reporte… (Enter para enviar)" : "Preguntá lo que necesités… (Enter para enviar, Shift+Enter para nueva línea)"}
-                  disabled={streaming}
+                  disabled={streaming || uploading}
                   rows={1}
                   style={{ flex: 1, resize: "none", background: "transparent", border: "none", outline: "none", fontSize: 13, lineHeight: 1.6, color: "#1A1A1A", fontFamily: "var(--font-plus-jakarta)", overflowY: "hidden", minHeight: 24, maxHeight: 160 }}
                 />
                 <button
                   type="submit"
-                  disabled={!input.trim() || streaming}
+                  disabled={(!input.trim() && attachedFiles.length === 0) || streaming || uploading}
                   className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer"
-                  style={{ backgroundColor: input.trim() && !streaming ? "#3D7A1C" : "#D6D1C8", color: "#fff" }}
+                  style={{ backgroundColor: (input.trim() || attachedFiles.length > 0) && !streaming && !uploading ? "#3D7A1C" : "#D6D1C8", color: "#fff" }}
                 >
                   <Send size={15} />
                 </button>

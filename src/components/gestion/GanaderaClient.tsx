@@ -1,15 +1,24 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
 import { useAppContext } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 import {
   StockPorCampo,
   CategoriaHacienda,
   CATEGORIAS_HACIENDA,
 } from "@/types/gestion";
-import { Plus, Trash2, X, Beef, Upload, Loader2, Bell } from "lucide-react";
+import { Plus, Trash2, X, Beef, Upload, Loader2, Bell, Download } from "lucide-react";
 import { uploadFile } from "@/lib/supabase/storage";
+import { createClient } from "@/lib/supabase/client";
+import { saveState, loadAllState } from "@/lib/supabase/db";
+
+interface GanaderaArchivoMeta {
+  nombre: string;
+  path: string;
+  fecha: string;
+}
 
 // ─── Manual Add Modal ─────────────────────────────────────────────────────────
 function ManualModal({
@@ -103,12 +112,63 @@ function ManualModal({
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function GanaderaClient() {
   const { campos, stockHacienda, setStockHacienda, empresaActivaId } = useAppContext();
+  const { user } = useAuth();
 
   const [dragging,      setDragging]      = useState(false);
   const [uploading,     setUploading]     = useState(false);
   const [uploadError,   setUploadError]   = useState<string | null>(null);
   const [showManual,    setShowManual]    = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // ── Archivo CREA state ─────────────────────────────────────────────────────
+  const [archivoMeta,       setArchivoMeta]       = useState<GanaderaArchivoMeta | null>(null);
+  const [uploadingArchivo,  setUploadingArchivo]  = useState(false);
+  const [archivoError,      setArchivoError]      = useState<string | null>(null);
+  const archivoInputRef = useRef<HTMLInputElement>(null);
+
+  // Load persisted archivo on mount
+  useEffect(() => {
+    if (!empresaActivaId) return;
+    loadAllState(empresaActivaId).then((state) => {
+      const meta = state["ganadera_archivo"];
+      if (meta) setArchivoMeta(meta as GanaderaArchivoMeta);
+    });
+  }, [empresaActivaId]);
+
+  const handleArchivoUpload = async (file: File) => {
+    const name = file.name.toLowerCase();
+    if (!name.endsWith(".xlsx") && !name.endsWith(".xlsm")) {
+      setArchivoError("Formato no soportado. Usá Excel (.xlsx, .xlsm).");
+      return;
+    }
+    if (!empresaActivaId || !user) {
+      setArchivoError("No hay empresa activa.");
+      return;
+    }
+    setUploadingArchivo(true);
+    setArchivoError(null);
+    try {
+      const supabase = createClient();
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const path = `${user.id}/${empresaActivaId}/ganadera/${Date.now()}_${safeName}`;
+      const { error } = await supabase.storage
+        .from("documentos")
+        .upload(path, file, { upsert: false });
+      if (error) throw new Error(`Error al subir archivo: ${error.message}`);
+
+      const meta: GanaderaArchivoMeta = {
+        nombre: file.name,
+        path,
+        fecha: new Date().toISOString(),
+      };
+      await saveState(empresaActivaId, "ganadera_archivo", meta);
+      setArchivoMeta(meta);
+    } catch (err) {
+      setArchivoError(err instanceof Error ? err.message : "Error al subir el archivo");
+    } finally {
+      setUploadingArchivo(false);
+    }
+  };
 
   // ── Inline editing ────────────────────────────────────────────────────────
   const updateRow = (id: string, field: keyof StockPorCampo, value: string | number) => {
@@ -214,6 +274,109 @@ export default function GanaderaClient() {
           </header>
 
           <main className="px-8 py-7 max-w-5xl space-y-6">
+
+            {/* ── Archivo de gestión ganadera CREA ─────────────────────────── */}
+            <div className="bg-white rounded-xl border overflow-hidden" style={{ borderColor: "#E8E5DE" }}>
+              <div className="flex items-center gap-3 px-5 py-4 border-b" style={{ borderColor: "#F0EDE6", backgroundColor: "#F5FAF3" }}>
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#EBF3E8" }}>
+                  <Beef size={14} style={{ color: "#3D7A1C" }} />
+                </div>
+                <p className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>Archivo de gestión ganadera CREA</p>
+              </div>
+
+              <div className="px-5 py-5">
+                {archivoError && (
+                  <div
+                    className="flex items-center justify-between rounded-lg px-4 py-3 text-sm mb-4"
+                    style={{ backgroundColor: "#FEE9E9", color: "#C0392B", border: "1px solid #FBCFCF" }}
+                  >
+                    <span>{archivoError}</span>
+                    <button onClick={() => setArchivoError(null)} className="ml-4 font-bold text-lg leading-none cursor-pointer hover:opacity-70">×</button>
+                  </div>
+                )}
+
+                {archivoMeta ? (
+                  /* File already uploaded */
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#EBF3E8" }}>
+                        <Upload size={15} style={{ color: "#3D7A1C" }} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium" style={{ color: "#1A1A1A" }}>{archivoMeta.nombre}</p>
+                        <p className="text-xs mt-0.5" style={{ color: "#9B9488" }}>
+                          Subido el {new Date(archivoMeta.fecha).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <a
+                        href="/plantillas-crea/plantilla-ganadero.xlsm"
+                        download
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border cursor-pointer hover:bg-gray-50 transition-colors"
+                        style={{ borderColor: "#D6D1C8", color: "#6B6560" }}
+                      >
+                        <Download size={13} /> Descargar plantilla CREA
+                      </a>
+                      <button
+                        onClick={() => archivoInputRef.current?.click()}
+                        disabled={uploadingArchivo}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border cursor-pointer hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{ borderColor: "#3D7A1C", color: "#3D7A1C" }}
+                      >
+                        {uploadingArchivo
+                          ? <><Loader2 size={13} className="animate-spin" /> Subiendo…</>
+                          : <><Upload size={13} /> Reemplazar</>
+                        }
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* No file yet */
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                      <p className="text-sm" style={{ color: "#1A1A1A" }}>
+                        Descargá la plantilla CREA, completá tus datos y subila para tener tu gestión centralizada.
+                      </p>
+                      <p className="text-xs mt-1" style={{ color: "#9B9488" }}>Formatos aceptados: .xlsx, .xlsm</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <a
+                        href="/plantillas-crea/plantilla-ganadero.xlsm"
+                        download
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border cursor-pointer hover:bg-gray-50 transition-colors"
+                        style={{ borderColor: "#D6D1C8", color: "#6B6560" }}
+                      >
+                        <Download size={14} /> Descargar plantilla CREA
+                      </a>
+                      <button
+                        onClick={() => archivoInputRef.current?.click()}
+                        disabled={uploadingArchivo}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{ backgroundColor: "#3D7A1C" }}
+                      >
+                        {uploadingArchivo
+                          ? <><Loader2 size={14} className="animate-spin" /> Subiendo…</>
+                          : <><Upload size={14} /> Subir mi archivo</>
+                        }
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <input
+                  ref={archivoInputRef}
+                  type="file"
+                  accept=".xlsx,.xlsm"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) handleArchivoUpload(e.target.files[0]);
+                    e.target.value = "";
+                  }}
+                />
+              </div>
+            </div>
+
             {/* Error banner */}
             {uploadError && (
               <div
